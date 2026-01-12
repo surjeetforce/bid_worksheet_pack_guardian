@@ -1,0 +1,306 @@
+/* Header styling */
+.sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    border-bottom: 2px solid #dddbda;
+    margin-bottom: 16px;
+    background-color: #fafaf9;
+}
+
+.sheet-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #3e3e3c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sheet-date {
+    font-size: 14px;
+    color: #706e6b;
+    font-weight: 400;
+}
+/* Section Amount in Accordion Label */
+.section-amount {
+    margin-left: 8px;
+    font-weight: 600;
+}
+
+/* Table wrapper */
+.estimate-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid #c9c9c9;
+}
+
+/* Main estimate table */
+.estimate-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    font-size: 0.875rem;
+}
+
+.estimate-table thead {
+    background-color: #e8e8e8;
+    border-bottom: 2px solid #000000;
+}
+
+.estimate-table th {
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: bold;
+    border: 1px solid #c9c9c9;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.estimate-table td {
+    padding: 0;
+    border: 1px solid #c9c9c9;
+    vertical-align: middle;
+}
+
+/* Column widths */
+.col-description {
+    width: 20%;
+    min-width: 180px;
+}
+
+.col-size {
+    width: 8%;
+    min-width: 70px;
+    text-align: center;
+}
+
+.col-quantity {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.col-unit {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.col-gross {
+    width: 10%;
+    min-width: 100px;
+    text-align: right;
+}
+
+.col-spacer {
+    width: 2%;
+    min-width: 20px;
+    background-color: #f3f3f3;
+    border: none;
+}
+
+/* Input fields inside table cells - DEFAULT: WHITE (editable) */
+.cell-input,
+.cell-textarea {
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    background: white;
+    box-sizing: border-box;
+}
+
+/* READONLY fields - GRAY background with bold text */
+.cell-input[readonly],
+.cell-textarea[readonly] {
+    background-color: transparent;
+    color: #000000;
+    font-weight: 500;
+    cursor: default;
+}
+
+/* Readonly cell background - applied to td element */
+td.readonly-cell {
+    background-color: #f3f3f3;
+}
+
+/* Inputs inside readonly cells should be transparent */
+td.readonly-cell .cell-input {
+    background-color: transparent;
+}
+
+.cell-input:focus,
+.cell-textarea:focus {
+    outline: 2px solid #1589ee;
+    outline-offset: -2px;
+    background-color: #fef8e8;
+}
+
+/* Description cells */
+.description-cell {
+    padding: 0;
+    vertical-align: top;
+}
+
+.description-text {
+    padding: 0.5rem;
+    background-color: #f3f3f3;
+    color: #000000;
+    font-weight: 500;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Text alignment for specific field types */
+.size-input {
+    text-align: center;
+    font-weight: 500;
+}
+
+.quantity-input,
+.unit-input {
+    text-align: center;
+}
+
+/* Style lightning-formatted-number for unit price (readonly) */
+.col-unit lightning-formatted-number {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: center;
+    background-color: transparent;
+    font-weight: 500;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Style lightning-formatted-number for quantity (readonly) - match readonly input appearance exactly */
+.col-quantity lightning-formatted-number {
+    display: inline-block !important;
+    width: 100% !important;
+    padding: 0.5rem !important;
+    text-align: center !important;
+    background-color: transparent !important;
+    color: #000000 !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    font-family: inherit !important;
+    box-sizing: border-box !important;
+    cursor: default !important;
+    line-height: normal !important;
+    vertical-align: middle !important;
+}
+
+.gross-input {
+    text-align: right;
+}
+
+/* Style gross cells to maintain appearance even when empty - always readonly */
+td.col-gross {
+    background-color: #f3f3f3 !important;
+}
+
+/* Style lightning-formatted-number to match gross-input appearance */
+.col-gross lightning-formatted-number {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: right;
+    background-color: transparent;
+    font-weight: 500;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Ensure formatted numbers in readonly cells are transparent */
+td.readonly-cell lightning-formatted-number {
+    background-color: transparent;
+}
+
+/* Placeholder for empty gross values */
+.gross-placeholder {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: right;
+    background-color: #f3f3f3;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: #706e6b;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Comment cells (for comment rows on right side) */
+.comment-cell {
+    padding: 0;
+    vertical-align: top;
+}
+
+.comment-textarea {
+    width: 100%;
+    min-height: 40px;
+    resize: vertical;
+}
+
+/* Total rows */
+.total-row {
+    background-color: #f0f0f0;
+}
+
+.total-row .cell-input {
+    /*font-weight: 600;*/
+}
+
+.total-row .cell-input[readonly] {
+    font-weight: 600;  /* Ensure consistent weight, not additive */
+}
+
+/* Remove spinner from number inputs */
+.cell-input::-webkit-outer-spin-button,
+.cell-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.cell-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .estimate-table {
+        font-size: 0.75rem;
+    }
+    
+    .col-description {
+        min-width: 160px;
+    }
+    
+    .col-size {
+        min-width: 60px;
+    }
+    
+    .col-quantity,
+    .col-unit {
+        min-width: 60px;
+    }
+    
+    .col-gross {
+        min-width: 80px;
+    }
+}
+
+/* Hover effects for better UX
+.estimate-table tbody tr:hover {
+    background-color: #f9f9f9;
+} */

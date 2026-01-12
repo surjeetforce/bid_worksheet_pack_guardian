@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>ITM_055</label>
+    <protected>false</protected>
+    <values>
+        <field>Category__c</field>
+        <value xsi:type="xsd:string">Fire Sprinkler</value>
+    </values>
+    <values>
+        <field>Column__c</field>
+        <value xsi:type="xsd:string">Right</value>
+    </values>
+    <values>
+        <field>Default_Hours__c</field>
+        <value xsi:type="xsd:double">175.0</value>
+    </values>
+    <values>
+        <field>Item_Description__c</field>
+        <value xsi:type="xsd:string">Backflow Cert (Per Valve Cost)</value>
+    </values>
+    <values>
+        <field>Row_Number__c</field>
+        <value xsi:type="xsd:double">36.0</value>
+    </values>
+    <values>
+        <field>Section__c</field>
+        <value xsi:type="xsd:string">Equipment Factor</value>
+    </values>
+</CustomMetadata>

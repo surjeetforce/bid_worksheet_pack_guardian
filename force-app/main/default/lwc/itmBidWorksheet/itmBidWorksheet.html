@@ -1,0 +1,500 @@
+<template>
+    <div class="modal-shell">
+        <header class="slds-modal__header custom-header">
+            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                <div class="slds-text-heading_medium">ITM Bid Worksheet</div>
+                <div class="slds-grid slds-grid_align-end slds-gutters_small">
+                    <div class="slds-col slds-text-align_right slds-m-top_medium">
+                        <template if:true={autoSaveStatus}>
+                            <span class="slds-m-right_small">
+                                <template if:true={isAutoSaving}>
+                                    <lightning-spinner size="xx-small" variant="brand"></lightning-spinner>
+                                    <span class="slds-m-left_x-small">Saving...</span>
+                                </template>
+                                <template if:true={isAutoSaved}>
+                                    <lightning-icon icon-name="utility:check" size="xx-small" variant="success"></lightning-icon>
+                                    <span class="slds-m-left_x-small">Auto-saved</span>
+                                </template>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="slds-col">
+                        <lightning-combobox
+                            variant="label-hidden"
+                            value={selectedVersionId}
+                            options={versionList}
+                            onchange={handleVersionChange}
+                            dropdown-alignment="auto"
+                            placeholder="Select Version"
+                            disabled={versionListDisabled}>
+                        </lightning-combobox>
+                        <template if:true={isLoadingVersion}>
+                            <div class="slds-m-top_x-small">
+                                <lightning-spinner size="xx-small" variant="brand" alternative-text="Loading version..."></lightning-spinner>
+                                <span class="slds-m-left_x-small slds-text-body_small">Loading version data...</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="slds-modal__content custom-content">
+            <lightning-card>
+                <div class="card-body-flex">
+
+                    <!-- Loading Spinner -->
+                    <template if:true={isLoading}>
+                        <div class="slds-align_absolute-center slds-m-around_large">
+                            <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
+                            <p class="slds-m-top_small">Loading ITM worksheet...</p>
+                        </div>
+                    </template>
+
+                    <!-- Main Content -->
+                    <template if:false={isLoading}>
+                        <div class="content-scroll">
+                            <!-- Content Container -->
+                            <div class={containerClass}>
+                                <div class="content-padding">
+                                    <div class="sheet-header">
+                                        <h2 class="sheet-title">Labor Factor</h2>
+                                        <span class="sheet-date">{currentDate}</span>
+                                    </div>
+
+                                    <!-- Section 1: LABOR FACTOR -->
+                                    <div class="itm-section">
+                                        <table class="itm-table">
+                                            <thead>
+                                                <tr class="header-row">
+                                                    <th colspan="4" class="section-header alarm-header">FIRE ALARM</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th colspan="4" class="section-header sprinkler-header">FIRE
+                                                        SPRINKLER</th>
+                                                </tr>
+                                                <tr class="column-headers">
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Qty</th>
+                                                    <th class="hours-col">Hours</th>
+                                                    <th class="total-col">Total Hours</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Qty</th>
+                                                    <th class="hours-col">Hours</th>
+                                                    <th class="total-col">Total Hours</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template for:each={laborFactorRows} for:item="row">
+                                                    <tr key={row.rowNumber} class="data-row">
+                                                        <!-- FIRE ALARM (Left) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.left.description}>
+                                                                {row.left.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.left.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="labor"
+                                            oninput={handleQuantityChange}
+                                            step="1"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.left.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="labor"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.left.total}
+                                            readonly />
+                                                        </td>
+
+                                                        <!-- Spacer -->
+                                                        <td class="spacer-cell"></td>
+
+                                                        <!-- FIRE SPRINKLER (Right) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.right.description}>
+                                                                {row.right.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.right.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="labor"
+                                            oninput={handleQuantityChange}
+                                            step="1"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.right.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="labor"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.right.total}
+                                            readonly />
+                                                        </td>
+                                                    </tr>
+                                                </template>
+
+                                                <!-- Total Labor Hours Row -->
+                                                <tr class="total-row">
+                                                    <td class="total-label" colspan="3">Total Alarm Labor Hours</td>
+                                                    <td class="total-value">{totalAlarmLaborHours}</td>
+                                                    <td class="spacer-cell"></td>
+                                                    <td class="total-label" colspan="3">Total Sprinkler Labor Hours</td>
+                                                    <td class="total-value">{totalSprinklerLaborHours}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Section 2: EQUIPMENT FACTOR -->
+                                    <div class="itm-section">
+                                        <h2 class="section-title">Equipment Factor</h2>
+                                        <table class="itm-table">
+                                            <thead>
+                                                <tr class="header-row">
+                                                    <th colspan="4" class="section-header alarm-header">FIRE ALARM</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th colspan="4" class="section-header sprinkler-header">FIRE
+                                                        SPRINKLER</th>
+                                                </tr>
+                                                <tr class="column-headers">
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Qty</th>
+                                                    <th class="hours-col">Cost</th>
+                                                    <th class="total-col">Total Cost</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Qty</th>
+                                                    <th class="hours-col">Cost</th>
+                                                    <th class="total-col">Total Cost</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template for:each={equipmentFactorRows} for:item="row">
+                                                    <tr key={row.rowNumber} class="data-row">
+                                                        <!-- FIRE ALARM (Left) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.left.description}>
+                                                                {row.left.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.left.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="equipment"
+                                            oninput={handleQuantityChange}
+                                            step="1"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.left.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="equipment"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.left.total}
+                                            readonly />
+                                                        </td>
+
+                                                        <!-- Spacer -->
+                                                        <td class="spacer-cell"></td>
+
+                                                        <!-- FIRE SPRINKLER (Right) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.right.description}>
+                                                                {row.right.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.right.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="equipment"
+                                            oninput={handleQuantityChange}
+                                            step="1"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.right.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="equipment"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.right.total}
+                                            readonly />
+                                                        </td>
+                                                    </tr>
+                                                </template>
+
+                                                <!-- Total Equipment Cost Row -->
+                                                <tr class="total-row">
+                                                    <td class="total-label" colspan="3">Total Cost</td>
+                                                    <td class="total-value">{totalAlarmEquipmentCost}</td>
+                                                    <td class="spacer-cell"></td>
+                                                    <td class="total-label" colspan="3">Total Cost</td>
+                                                    <td class="total-value">{totalSprinklerEquipmentCost}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Section 3: RATES -->
+                                    <div class="itm-section">
+                                        <h2 class="section-title">Rates</h2>
+                                        <table class="itm-table">
+                                            <thead>
+                                                <tr class="header-row">
+                                                    <th colspan="4" class="section-header alarm-header">FIRE ALARM</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th colspan="4" class="section-header sprinkler-header">FIRE
+                                                        SPRINKLER</th>
+                                                </tr>
+                                                <tr class="column-headers">
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Hours</th>
+                                                    <th class="hours-col">Rate</th>
+                                                    <th class="total-col">Total</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th class="desc-col">Description</th>
+                                                    <th class="qty-col">Hours</th>
+                                                    <th class="hours-col">Rate</th>
+                                                    <th class="total-col">Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template for:each={ratesRows} for:item="row">
+                                                    <tr key={row.rowNumber} class="data-row">
+                                                        <!-- FIRE ALARM (Left) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.left.description}>
+                                                                {row.left.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.left.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="rates"
+                                            oninput={handleQuantityChange}
+                                            step="0.01"
+                                            min="0"
+                                            disabled={row.isLaborMixRate} />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.left.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="left"
+                                            data-section="rates"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.left.total}
+                                            readonly />
+                                                        </td>
+
+                                                        <!-- Spacer -->
+                                                        <td class="spacer-cell"></td>
+
+                                                        <!-- FIRE SPRINKLER (Right) -->
+                                                        <td class="desc-cell">
+                                                            <div class="itm-desc-text" title={row.right.description}>
+                                                                {row.right.description}
+                                                            </div>
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input qty-input"
+                                            value={row.right.quantity}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="rates"
+                                            oninput={handleQuantityChange}
+                                            step="0.01"
+                                            min="0"
+                                            disabled={row.isLaborMixRate} />
+                                                        </td>
+                                                        <td class="input-cell">
+                                                            <input
+                                            type="number"
+                                            class="itm-input hours-input"
+                                            value={row.right.hours}
+                                            data-row={row.rowNumber}
+                                            data-column="right"
+                                            data-section="rates"
+                                            oninput={handleHoursChange}
+                                            step="0.01"
+                                            min="0" />
+                                                        </td>
+                                                        <td class="total-cell">
+                                                            <input
+                                            type="text"
+                                            class="itm-input"
+                                            value={row.right.total}
+                                            readonly />
+                                                        </td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Section 4: SUMMARY -->
+                                    <div class="itm-section">
+                                        <h2 class="section-title">Summary</h2>
+                                        <table class="itm-table summary-table">
+                                            <thead>
+                                                <tr class="header-row">
+                                                    <th colspan="4" class="section-header alarm-header">FIRE ALARM</th>
+                                                    <th class="spacer-col"></th>
+                                                    <th colspan="4" class="section-header sprinkler-header">FIRE SPRINKLER</th>
+                                                </tr>
+                                                <tr class="column-headers">
+                                                    <th class="desc-col"></th>
+                                                    <th class="qty-col"></th>
+                                                    <th class="hours-col"></th>
+                                                    <th class="total-col"></th>
+                                                    <th class="spacer-col"></th>
+                                                    <th class="desc-col"></th>
+                                                    <th class="qty-col"></th>
+                                                    <th class="hours-col"></th>
+                                                    <th class="total-col"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- Subtotal Row -->
+                                                <tr class="subtotal-row">
+                                                    <td class="summary-label" colspan="3">SUBTOTAL</td>
+                                                    <td class="summary-value">{alarmSubtotal}</td>
+                                                    <td class="spacer-cell"></td>
+                                                    <td class="summary-label" colspan="3">SUBTOTAL</td>
+                                                    <td class="summary-value">{sprinklerSubtotal}</td>
+                                                </tr>
+
+                                                <!-- Gain Percent Row -->
+                                                <tr class="gain-row">
+                                                    <td class="summary-label" colspan="2">% GAIN</td>
+                                                    <td class="input-cell" colspan="2">
+                                                        <input
+                                        type="number"
+                                        class="itm-input gain-input"
+                                        value={alarmGainPercent}
+                                        data-column="left"
+                                        oninput={handleGainPercentChange}
+                                        step="0.01"
+                                        min="0"
+                                        max="1" />
+                                                    </td>
+                                                    <td class="spacer-cell"></td>
+                                                    <td class="summary-label" colspan="2">% GAIN</td>
+                                                    <td class="input-cell" colspan="2">
+                                                        <input
+                                        type="number"
+                                        class="itm-input gain-input"
+                                        value={sprinklerGainPercent}
+                                        data-column="right"
+                                        oninput={handleGainPercentChange}
+                                        step="0.01"
+                                        min="0"
+                                        max="1" />
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Total Quote Price Row -->
+                                                <tr class="total-quote-row">
+                                                    <td class="quote-label" colspan="3">TOTAL QUOTE PRICE</td>
+                                                    <td class="quote-value">{alarmTotalQuote}</td>
+                                                    <td class="spacer-cell"></td>
+                                                    <td class="quote-label" colspan="3">TOTAL QUOTE PRICE</td>
+                                                    <td class="quote-value">{sprinklerTotalQuote}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </div>
+
+        <footer class="slds-modal__footer custom-footer">
+            <lightning-button variant="brand" label="Save ITM Worksheet" onclick={handleSave} icon-name="utility:save"
+                disabled={isSaving}>
+            </lightning-button>
+        </footer>
+    </div>
+</template>

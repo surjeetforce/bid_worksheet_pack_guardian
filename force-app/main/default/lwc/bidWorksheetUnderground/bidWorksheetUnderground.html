@@ -1,0 +1,197 @@
+<template>
+    <!-- <lightning-card> -->
+    <div>
+        <!-- Header with title and date -->
+        <template if:false={isLoading}>
+            <div class="sheet-header">
+                <span class="sheet-title">UNDERGROUND ESTIMATE SHEET #{sheetNumber}</span>
+                <span class="sheet-date">{currentDate}</span>
+            </div>
+
+            <!-- Rest of content -->
+        </template>
+
+        <div class="">
+            <template if:true={isLoading}>
+                <div class="slds-p-around_x-large slds-text-align_center">
+                    <lightning-spinner alternative-text="Loading sheet data..." size="medium" variant="brand">
+                    </lightning-spinner>
+                    <p class="slds-m-top_medium slds-text-body_regular">
+                        Loading materials from configuration...
+                    </p>
+                </div>
+            </template>
+            <template if:false={isLoading}>
+                <!-- Main estimate table with two columns -->
+                <div class="estimate-table-wrapper">
+                    <table class="estimate-table">
+                        <thead>
+                            <tr>
+                                <!-- Left section headers -->
+                                <th class="col-description">DESCRIPTION</th>
+                                <th class="col-size">SIZE</th>
+                                <th class="col-amount">AMOUNT</th>
+                                <th class="col-unit">UNIT #</th>
+                                <th class="col-gross">GROSS $</th>
+
+                                <th class="col-spacer"></th>
+
+                                <!-- Right section headers -->
+                                <th class="col-description">DESCRIPTION</th>
+                                <th class="col-size">SIZE</th>
+                                <th class="col-amount">AMOUNT</th>
+                                <th class="col-unit">UNIT #</th>
+                                <th class="col-gross">GROSS $</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic rows using iteration -->
+                            <template for:each={tableRows} for:item="row">
+                                <tr key={row.id}>
+                                    <!-- Left column -->
+                                    <td class={row.left.descriptionClass}>
+                                        <template if:true={row.left.descriptionReadonly}>
+                                            <div class="description-text" title={row.left.description}>
+                                                {row.left.description}
+                                            </div>
+                                        </template>
+                                        <template if:false={row.left.descriptionReadonly}>
+                                            <input
+                                                type="text"
+                                                value={row.left.description}
+                                                class="cell-input"
+                                                data-row={row.id}
+                                                data-col="left"
+                                                data-field="description"
+                                                oninput={handleCellChange}
+                                                readonly={row.left.descriptionReadonly} />
+                                        </template>
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={row.left.size}
+                                            class="cell-input size-input"
+                                            data-row={row.id}
+                                            data-col="left"
+                                            data-field="size"
+                                            oninput={handleCellChange}
+                                            readonly={row.left.sizeReadonly} />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            value={row.left.amount}
+                                            class="cell-input amount-input"
+                                            data-row={row.id}
+                                            data-col="left"
+                                            data-field="amount"
+                                            oninput={handleCellChange}
+                                            step="0.01" />
+                                    </td>
+                                    <td class="col-unit">
+                                        <input
+                                            type="number"
+                                            value={row.left.unitPrice}
+                                            class="cell-input unit-input"
+                                            data-row={row.id}
+                                            data-col="left"
+                                            data-field="unitPrice"
+                                            oninput={handleCellChange}
+                                            step="0.01"
+                                            readonly={row.left.unitPriceReadonly} />
+                                    </td>
+                                    <td class="col-gross">
+                                        <template if:true={row.left.gross}>
+                                            <lightning-formatted-number value={row.left.gross} format-style="currency"
+                                                currency-code="USD">
+                                            </lightning-formatted-number>
+                                        </template>
+                                    </td>
+
+                                    <td class="col-spacer"></td>
+
+                                    <!-- Right column -->
+                                    <td class={row.right.descriptionClass}>
+                                        <template if:true={row.right.descriptionReadonly}>
+                                            <div class="description-text" title={row.right.description}>
+                                                {row.right.description}
+                                            </div>
+                                        </template>
+                                        <template if:false={row.right.descriptionReadonly}>
+                                            <input
+                                                type="text"
+                                                value={row.right.description}
+                                                class="cell-input"
+                                                data-row={row.id}
+                                                data-col="right"
+                                                data-field="description"
+                                                oninput={handleCellChange}
+                                                readonly={row.right.descriptionReadonly} />
+                                        </template>
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={row.right.size}
+                                            class="cell-input size-input"
+                                            data-row={row.id}
+                                            data-col="right"
+                                            data-field="size"
+                                            oninput={handleCellChange}
+                                            readonly={row.right.sizeReadonly} />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            value={row.right.amount}
+                                            class="cell-input amount-input"
+                                            data-row={row.id}
+                                            data-col="right"
+                                            data-field="amount"
+                                            oninput={handleCellChange}
+                                            step="0.01" />
+                                    </td>
+                                    <td class="col-unit">
+                                        <input
+                                            type="number"
+                                            value={row.right.unitPrice}
+                                            class="cell-input unit-input"
+                                            data-row={row.id}
+                                            data-col="right"
+                                            data-field="unitPrice"
+                                            oninput={handleCellChange}
+                                            step="0.01"
+                                            readonly={row.right.unitPriceReadonly} />
+                                    </td>
+                                    <td class="col-gross">
+                                        <template if:true={row.right.gross}>
+                                            <lightning-formatted-number value={row.right.gross} format-style="currency"
+                                                currency-code="USD">
+                                            </lightning-formatted-number>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Sub Total Section -->
+                <div class="subtotal-section">
+                    <div class="subtotal-left">
+                        <span class="subtotal-label">SUB TOTAL SHT.</span>
+                        <span class="subtotal-sheet-number">#{sheetNumber}</span>
+                    </div>
+                    <div class="subtotal-right">
+                        <lightning-formatted-number value={subTotal} format-style="currency" currency-code="USD"
+                            class="subtotal-value">
+                        </lightning-formatted-number>
+                        <span class="revision-info">REV {revisionDate}</span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+    <!-- </lightning-card> -->
+</template>

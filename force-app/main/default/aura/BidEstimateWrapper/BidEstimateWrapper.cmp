@@ -1,0 +1,8 @@
+<aura:component implements="force:lightningQuickActionWithoutHeader,force:hasRecordId" access="global">
+    <aura:attribute name="recordId" type="Id"/>
+
+    <lightning:navigation aura:id="navService"/>
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+
+    <lightning:spinner alternativeText="Opening Estimates Calculator..." size="medium"/>
+</aura:component>

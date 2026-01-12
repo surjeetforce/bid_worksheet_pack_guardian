@@ -1,0 +1,11 @@
+<aura:component implements="force:lightningQuickActionWithoutHeader,force:hasRecordId" access="global">
+    <aura:attribute name="recordId" type="Id"/>
+
+    <!-- Tab API name to open (Setup → Tabs → Lightning Component Tabs) -->
+    <aura:attribute name="tabApiName" type="String" default="ITM_Estimate_Calculator"/>
+
+    <lightning:navigation aura:id="navService"/>
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+
+    <lightning:spinner alternativeText="Opening ITM Worksheet..." size="medium"/>
+</aura:component>

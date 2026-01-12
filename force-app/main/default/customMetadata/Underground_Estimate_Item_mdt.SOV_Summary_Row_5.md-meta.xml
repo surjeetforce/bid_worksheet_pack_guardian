@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>SOV Summary Row 5</label>
+    <protected>false</protected>
+    <values>
+        <field>Column_Side__c</field>
+        <value xsi:type="xsd:string">Left</value>
+    </values>
+    <values>
+        <field>Default_Amount__c</field>
+        <value xsi:type="xsd:double">0.0</value>
+    </values>
+    <values>
+        <field>Default_Unit_Price__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">DROP CUT (BY FLOOR / BY BUILDING)</value>
+    </values>
+    <values>
+        <field>Gross_Field_Type__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>Is_Comment_Row__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>Is_Indent__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>Is_Read_Only__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>Is_Total_Row__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>Row_Number__c</field>
+        <value xsi:type="xsd:double">5.0</value>
+    </values>
+    <values>
+        <field>Section__c</field>
+        <value xsi:type="xsd:double">1.0</value>
+    </values>
+    <values>
+        <field>Sheet_Number__c</field>
+        <value xsi:type="xsd:double">3.0</value>
+    </values>
+    <values>
+        <field>Size__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>Unit_Price_Field_Type__c</field>
+        <value xsi:nil="true"/>
+    </values>
+</CustomMetadata>

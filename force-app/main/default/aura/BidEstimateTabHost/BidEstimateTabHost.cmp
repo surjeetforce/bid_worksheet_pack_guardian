@@ -1,0 +1,12 @@
+<aura:component access="global"
+    implements="lightning:isUrlAddressable,flexipage:availableForAllPageTypes,force:hasRecordId,force:appHostable">
+    <aura:attribute name="recordId" type="Id"/>
+
+    <!-- Required for lightning:isUrlAddressable; contains state params like c__recordId -->
+    <aura:attribute name="pageReference" type="Object" access="public"/>
+
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+    <aura:handler name="change" value="{!v.pageReference}" action="{!c.handlePageReferenceChange}"/>
+
+    <c:bidWorksheetUndergroundParent recordId="{!v.recordId}" />
+</aura:component>

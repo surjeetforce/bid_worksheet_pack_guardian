@@ -1,0 +1,162 @@
+<template>
+    <div class="slds-p-around_medium">
+        <!-- Loading Spinner -->
+        <template if:true={isLoading}>
+            <div class="slds-p-around_x-large slds-text-align_center">
+                <lightning-spinner alternative-text="Loading Schedule of Values..." size="medium" variant="brand">
+                </lightning-spinner>
+                <p class="slds-m-top_medium slds-text-body_regular">
+                    Loading schedule data...
+                </p>
+            </div>
+        </template>
+
+        <!-- Main Content -->
+        <template if:false={isLoading}>
+            <!-- Sheet Header (matches other worksheets) -->
+            <div class="sheet-header">
+                <span class="sheet-title">Schedule of Values</span>
+                <span class="sheet-date">{currentDate}</span>
+            </div>
+
+            <div class="sov-body">
+                <!-- Job Summary Section -->
+                <section class="job-summary-section">
+                    <table class="job-summary-table">
+                        <tbody>
+                            <tr>
+                                <th>JOB NAME :</th>
+                                <td colspan="4">
+                                    <input
+                                            class="field-input"
+                                            type="text"
+                                            value={jobOverview.jobName}
+                                            data-field="jobName"
+                                            oninput={handleJobInfoChange}
+                                        />
+                                </td>
+                                <th># OF BUILDINGS :</th>
+                                <td class="narrow-cell">
+                                    <input
+                                            class="field-input align-center"
+                                            type="number"
+                                            min="1"
+                                            value={jobOverview.numberOfBuildings}
+                                            data-field="numberOfBuildings"
+                                            oninput={handleJobInfoChange}
+                                            onblur={handleJobInfoBlur}
+                                            onkeydown={handleNumberKeyDown}
+                                        />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <!-- Summary Section - All Buildings -->
+                <section class="summary-section">
+                    <div class="summary-table-wrapper">
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>ALL BUILDINGS</th>
+                                    <th class="amount-column">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={summaryRows} for:item="row">
+                                    <tr key={row.id}>
+                                        <th>{row.label}</th>
+                                        <td>
+                                            <div class="amount-editor">
+                                                <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        value={row.value}
+                                                        data-row-id={row.id}
+                                                        oninput={handleSummaryValueChange}
+                                                        onkeydown={handleNumberKeyDown}
+                                                    />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr class="grand-total-row">
+                                    <th>TOTAL FROM ALL BUILDINGS</th>
+                                    <th class="grand-total-value">{totalSummaryDisplay}</th>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Individual Building Sections -->
+                <template for:each={visibleBuildings} for:item="building">
+                    <section key={building.id} class="building-section">
+                        <div class="building-header">
+                            <div class="building-label">
+                                <span class="label">BUILDING #</span>
+                                <span class="value">{building.label}</span>
+                            </div>
+                            <div class="building-total">
+                                <span class="label">TOTAL</span>
+                                <span class="value">{building.totalDisplay}</span>
+                            </div>
+                        </div>
+
+                        <div class="building-table-wrapper">
+                            <table class="building-table">
+                                <thead>
+                                    <tr>
+                                        <th>BUILDING #{building.label}</th>
+                                        <template for:each={floorColumns} for:item="column">
+                                            <th key={column.key}>{column.label}</th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={building.categoryRows} for:item="row">
+                                        <tr key={row.id}>
+                                            <th>{row.label}</th>
+                                            <template for:each={row.cells} for:item="cell">
+                                                <td key={cell.key}>
+                                                    <template if:true={cell.isTotal}>
+                                                        <span class="readonly-value">{cell.displayValue}</span>
+                                                    </template>
+                                                    <template if:false={cell.isTotal}>
+                                                        <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                value={cell.value}
+                                                                data-building-id={building.id}
+                                                                data-row-id={row.id}
+                                                                data-floor-key={cell.key}
+                                                                oninput={handleBuildingValueChange}
+                                                                onkeydown={handleNumberKeyDown}
+                                                            />
+                                                    </template>
+                                                </td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                    <tr class="building-total-row">
+                                        <th>TOTAL BUILDING #{building.label}</th>
+                                        <template for:each={building.floorSummaryCells} for:item="cell">
+                                            <td key={cell.key}>
+                                                <span class="readonly-value">{cell.displayValue}</span>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </template>
+
+                <!-- Save button removed - handled by parent -->
+            </div>
+        </template>
+    </div>
+</template>

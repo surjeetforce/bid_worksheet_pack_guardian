@@ -1,0 +1,358 @@
+/* bidworksheetundergroundtwo.css */
+/* Header styling */
+.sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    border-bottom: 2px solid #dddbda;
+    margin-bottom: 16px;
+    background-color: #fafaf9;
+}
+
+.sheet-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #3e3e3c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sheet-date {
+    font-size: 14px;
+    color: #706e6b;
+    font-weight: 400;
+}
+
+/* Table wrapper */
+.estimate-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid #c9c9c9;
+}
+
+/* Main estimate table */
+.estimate-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    font-size: 0.875rem;
+}
+
+.estimate-table thead {
+    background-color: #e8e8e8;
+    border-bottom: 2px solid #000000;
+}
+
+.estimate-table th {
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: bold;
+    border: 1px solid #c9c9c9;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.estimate-table td {
+    padding: 0;
+    border: 1px solid #c9c9c9;
+    vertical-align: middle;
+    background-color: #ffffff; /* Default white for editable cells */
+}
+
+/* Override for readonly cells - must come after default td rule */
+.estimate-table td.readonly-cell {
+    background-color: #f3f3f3 !important;
+}
+
+/* Column widths */
+.col-description-wide {
+    width: 22%;
+    min-width: 200px;
+}
+
+.col-amount {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.col-unit {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.col-gross {
+    width: 10%;
+    min-width: 100px;
+    text-align: right;
+}
+
+.col-spacer {
+    width: 2%;
+    min-width: 20px;
+    background-color: #f3f3f3;
+    border: none;
+}
+
+/* Input fields inside table cells */
+.cell-input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    background-color: transparent; /* Transparent so td background shows through */
+    box-sizing: border-box;
+}
+
+.cell-input:focus {
+    outline: 2px solid #1589ee;
+    outline-offset: -2px;
+    background-color: #fef8e8;
+}
+
+/* ⭐ NEW: Readonly field styling - greyed out and cursor not-allowed */
+/* Background color on td, not input, so it covers full cell height */
+/* Note: Also defined above with .estimate-table prefix for higher specificity */
+
+.cell-input[readonly] {
+    background-color: transparent;
+    color: #706e6b;
+    cursor: not-allowed;
+}
+
+.cell-input[readonly]:focus {
+    outline: none;
+    background-color: transparent;
+}
+
+/* Description cells */
+.description-cell {
+    padding: 0;
+    vertical-align: top;
+}
+
+.description-cell input[readonly] {
+    background-color: transparent;
+    color: #000000;
+    font-weight: 500;
+}
+
+.description-text {
+    padding: 0.5rem;
+    background-color: transparent;
+    color: #000000;
+    font-weight: 500;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Amount inputs */
+.amount-input {
+    text-align: center;
+}
+
+/* Unit inputs */
+.unit-input {
+    text-align: center;
+}
+
+/* Style lightning-formatted-number for unit price (readonly) */
+.col-unit lightning-formatted-number {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: center;
+    background-color: transparent;
+    font-weight: 500;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Placeholder for empty readonly unit price fields */
+.unit-price-placeholder {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: transparent;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+}
+
+/* Style hours format for gross fields */
+.hours-format {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: right;
+    background-color: #f3f3f3;
+    font-weight: 500;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Gross inputs (calculated, readonly) */
+.gross-input {
+    text-align: right;
+    background-color: #f3f3f3;
+    font-weight: 500;
+}
+
+/* Style gross cells to maintain appearance even when empty */
+/* Gross cells are always readonly, so use same color as other readonly cells */
+.estimate-table td.col-gross {
+    background-color: #f3f3f3 !important;
+}
+
+/* Style lightning-formatted-number to match gross-input appearance */
+.col-gross lightning-formatted-number {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: right;
+    background-color: transparent;
+    font-weight: 500;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Placeholder for empty gross values */
+.gross-placeholder {
+    display: flex;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: right;
+    background-color: #f3f3f3;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: #706e6b;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Comment cells (for COMMENTS and EXCLUSIONS sections) */
+.comment-cell {
+    padding: 0;
+    vertical-align: top;
+}
+
+.comment-textarea {
+    width: 100%;
+    min-height: 40px;
+    border: none;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+    background-color: #fafafa;
+}
+
+.comment-textarea:focus {
+    outline: 2px solid #1589ee;
+    outline-offset: -2px;
+    background-color: #fef8e8;
+}
+
+/* Total rows */
+.total-row {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
+
+.total-row .cell-input {
+    background-color: #f0f0f0;
+    font-weight: bold;
+}
+
+/* Remove spinner from number inputs */
+.cell-input::-webkit-outer-spin-button,
+.cell-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.cell-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Subtotal section */
+.subtotal-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: #f3f3f3;
+    border: 1px solid #c9c9c9;
+    border-top: 2px solid #000000;
+    margin-top: -1px;
+}
+
+.subtotal-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.subtotal-label {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+}
+
+.subtotal-right {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.subtotal-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #080707;
+}
+
+.revision-info {
+    font-size: 0.75rem;
+    color: #706e6b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .estimate-table {
+        font-size: 0.75rem;
+    }
+    
+    .col-description-wide {
+        min-width: 180px;
+    }
+    
+    .col-amount,
+    .col-unit {
+        min-width: 60px;
+    }
+    
+    .col-gross {
+        min-width: 80px;
+    }
+}
+
+/* Hover effects for better UX */
+.estimate-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* Readonly field styling - don't show hover effect */
+input[readonly].cell-input:hover {
+    background-color: #f3f3f3;
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>ITM_031</label>
+    <protected>false</protected>
+    <values>
+        <field>Category__c</field>
+        <value xsi:type="xsd:string">Fire Alarm</value>
+    </values>
+    <values>
+        <field>Column__c</field>
+        <value xsi:type="xsd:string">Left</value>
+    </values>
+    <values>
+        <field>Default_Hours__c</field>
+        <value xsi:type="xsd:double">0.17</value>
+    </values>
+    <values>
+        <field>Item_Description__c</field>
+        <value xsi:type="xsd:string">Exit Lights</value>
+    </values>
+    <values>
+        <field>Row_Number__c</field>
+        <value xsi:type="xsd:double">19.0</value>
+    </values>
+    <values>
+        <field>Section__c</field>
+        <value xsi:type="xsd:string">Labor Factor</value>
+    </values>
+</CustomMetadata>

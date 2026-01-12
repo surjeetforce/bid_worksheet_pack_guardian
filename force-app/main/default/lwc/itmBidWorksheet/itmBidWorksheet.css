@@ -1,0 +1,368 @@
+:host {
+    display: block;
+    height: 100%;
+}
+
+.modal-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 70vh;
+    height: 100%;
+    max-height: calc(100vh - 3rem);
+    overflow: hidden;
+}
+
+.custom-header {
+    border-bottom: 1px solid #d8dde6;
+    padding: 0.75rem 1.5rem;
+}
+
+.custom-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 0 1rem 0.5rem;
+    overflow: auto;
+}
+
+.card-body-flex {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
+.content-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    height: 100%;
+}
+
+.content-padding {
+    padding: 0.5rem;
+}
+
+.custom-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    border-top: 1px solid #d8dde6;
+    padding: 0.75rem 1.5rem;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    z-index: 1;
+    box-shadow: none;
+}
+
+/* itmbidworksheet.css */
+/* Header styling */
+.sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 8px 12px;
+    border-bottom: 2px solid #dddbda;
+    margin-bottom: 0.75rem;
+    background-color: #fafaf9;
+}
+
+.sheet-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #3e3e3c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sheet-date {
+    font-size: 14px;
+    color: #706e6b;
+    font-weight: 400;
+}
+
+/* Section styling */
+.itm-section {
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+}
+
+/* Table wrapper */
+.estimate-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid #c9c9c9;
+}
+
+/* Main ITM table */
+.itm-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    font-size: 0.875rem;
+}
+
+.itm-table thead {
+    background-color: #e8e8e8;
+    border-bottom: 2px solid #000000;
+}
+
+.itm-table th {
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: bold;
+    border: 1px solid #c9c9c9;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.itm-table td {
+    padding: 0;
+    border: 1px solid #c9c9c9;
+    vertical-align: middle;
+}
+
+/* Header Rows */
+.header-row {
+    background-color: #e8e8e8;
+}
+
+.section-header {
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center !important;
+    padding: 0.75rem !important;
+}
+
+.alarm-header {
+    background-color: #e6f3ff !important;
+    color: #004080;
+}
+
+.sprinkler-header {
+    background-color: #ffe6e6 !important;
+    color: #800000;
+}
+
+.column-headers {
+    background-color: #e8e8e8;
+    font-weight: bold;
+}
+
+.column-headers th {
+    text-align: center !important;
+}
+
+/* Column widths */
+.desc-col {
+    width: 28%;
+    min-width: 180px;
+}
+
+.qty-col {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.hours-col {
+    width: 8%;
+    min-width: 80px;
+    text-align: center;
+}
+
+.total-col {
+    width: 10%;
+    min-width: 100px;
+    text-align: right;
+}
+
+.spacer-col {
+    width: 2%;
+    min-width: 20px;
+    background-color: #f3f3f3;
+    border: none !important;
+}
+
+/* Input fields inside table cells */
+.itm-input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.itm-input:focus {
+    outline: 2px solid #1589ee;
+    outline-offset: -2px;
+    background-color: #fef8e8;
+}
+
+.itm-input:disabled {
+    background-color: #f3f3f3;
+    color: #000000;
+    cursor: default;
+}
+
+/* Description cells */
+.desc-cell {
+    padding: 0;
+    vertical-align: top;
+}
+
+.itm-desc-text {
+    padding: 0.5rem;
+    background-color: #f3f3f3;
+    color: #000000;
+    font-weight: 500;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* Quantity inputs */
+.qty-input {
+    text-align: center;
+}
+
+/* Hours inputs */
+.hours-input {
+    text-align: center;
+}
+
+/* Total cells (readonly) */
+.total-cell {
+    padding: 0;
+}
+
+.total-cell .itm-input {
+    text-align: right;
+    background-color: #f9f9f9;
+    font-weight: 500;
+}
+
+/* Remove spinner from number inputs */
+.itm-input::-webkit-outer-spin-button,
+.itm-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.itm-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Total Rows */
+.total-row {
+    background-color: #f3f3f3;
+    border-top: 2px solid #000000;
+    font-weight: bold;
+}
+
+.total-label {
+    text-align: right !important;
+    padding: 0.5rem 1rem 0.5rem 0.5rem !important;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.total-value {
+    padding: 0.5rem !important;
+    text-align: right !important;
+    font-weight: bold;
+    color: #000000;
+    font-size: 1rem;
+}
+
+/* Summary section styling */
+.summary-table {
+    margin-top: 1rem;
+}
+
+.subtotal-row,
+.gain-row,
+.total-quote-row {
+    background-color: #f3f3f3;
+    font-weight: bold;
+}
+
+.summary-label,
+.quote-label {
+    text-align: right !important;
+    padding: 0.5rem 1rem 0.5rem 0.5rem !important;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+}
+
+.summary-value,
+.quote-value {
+    padding: 0.5rem !important;
+    text-align: right !important;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.input-cell {
+    padding: 0 !important;
+}
+
+.gain-input {
+    text-align: center;
+    font-weight: bold;
+}
+
+.spacer-cell {
+    background-color: #f3f3f3;
+    border: none !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .itm-table {
+        font-size: 0.75rem;
+    }
+    
+    .desc-col {
+        min-width: 150px;
+    }
+    
+    .qty-col,
+    .hours-col {
+        min-width: 60px;
+    }
+    
+    .total-col {
+        min-width: 80px;
+    }
+}
+
+/* Hover effects */
+.itm-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* Readonly field styling */
+input[readonly].itm-input {
+    cursor: default;
+}
+
+input[readonly].itm-input:hover {
+    background-color: #f3f3f3;
+}

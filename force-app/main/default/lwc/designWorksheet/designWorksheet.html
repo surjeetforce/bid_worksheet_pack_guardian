@@ -1,0 +1,772 @@
+<template>
+
+        <div class="slds-p-around_medium">
+
+                <!-- Loading Spinner -->
+                <template if:true={isLoading}>
+                        <div class="slds-align_absolute-center" style="height: 200px;">
+                                <lightning-spinner alternative-text="Loading Design Worksheet..." size="medium"
+                                        variant="brand">
+                                </lightning-spinner>
+                                <p class="slds-m-top_medium slds-text-body_regular">
+                                        Loading design data...
+                                </p>
+                        </div>
+                </template>
+
+                <!-- Form Content -->
+                <template if:false={isLoading}>
+
+                        <!-- Sheet Header -->
+                        <div class="sheet-header">
+                                <span class="sheet-title">Job Start Up /
+                                                Design Narrative</span>
+                                <span
+                                                class="sheet-date">{currentDate}</span>
+                        </div>
+
+                        <!-- Simple input fields -->
+                        <div class="simple-field">
+                                <lightning-input label="Job Name" value={formData.jobName} onchange={handleInputChange}
+                                        data-field="jobName"></lightning-input>
+                        </div>
+
+                        <div class="simple-field">
+                                <lightning-input label="JOB ADDRESS" value={formData.jobAddress}
+                                        onchange={handleInputChange} data-field="jobAddress"></lightning-input>
+                        </div>
+
+                        <div class="simple-field">
+                                <lightning-input label="DESCRIPTION" value={formData.description}
+                                        onchange={handleInputChange} data-field="description"></lightning-input>
+                        </div>
+
+                        <!-- Table format - 10 COLUMNS TOTAL -->
+                        <table class="excel-table">
+                                <tbody>
+                                        <!-- Service Territory -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">SERVICE
+                                                        TERRITORY /
+                                                        FLOORS</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="serviceTerritory_SC"
+                                                                        checked={formData.serviceTerritory_SC}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">SC</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="serviceTerritory_NC"
+                                                                        checked={formData.serviceTerritory_NC}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">NC</td>
+                                                <td class="input-col" colspan="2">
+                                                        <lightning-input type="number" label="#FLOORS"
+                                                                value={formData.numberOfFloors}
+                                                                onchange={handleInputChange} data-field="numberOfFloors"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}></lightning-input>
+                                                </td>
+                                                <td class="input-col" colspan="3">
+                                                        <lightning-input label="PENTHOUSE" value={formData.penthouse}
+                                                                onchange={handleInputChange} data-field="penthouse">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- Bid Plan Date -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">BID
+                                                        PLAN DATE</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="date" value={formData.bidPlanDate}
+                                                                onchange={handleInputChange} data-field="bidPlanDate">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- Residential Rates -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">RESIDENTIAL
+                                                        RATES</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="residentialRates"
+                                                                        checked={formData.residentialRates}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Local Hire -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">LOCAL
+                                                        HIRE</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="localHire"
+                                                                        checked={formData.localHire}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Apprentice % -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">APPRENTICE
+                                                        %</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="apprenticePercent"
+                                                                        checked={formData.apprenticePercent}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Textura -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">TEXTURA</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="textura"
+                                                                        checked={formData.textura}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Certified Payroll -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">CERTIFIED
+                                                        PAYROLL</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="certifiedPayroll"
+                                                                        checked={formData.certifiedPayroll}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Bond -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">BOND</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="bond"
+                                                                        checked={formData.bond}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- OCIP -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">OCIP
+                                                        DEDUCT OR ADD
+                                                        LATER</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="ocipDeduct"
+                                                                        checked={formData.ocipDeduct}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col" colspan="2">DEDUCT</td>
+                                                <td colspan="5">
+                                                        <lightning-input type="number" label="$ AMOUNT"
+                                                                value={formData.ocupAmount} onchange={handleInputChange}
+                                                                data-field="ocupAmount" data-is-allowed-decimal="true"
+                                                                onkeydown={handleKeyDown} step="0.01"></lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- Market Recovery -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">MARKET
+                                                        RECOVERY</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="marketRecovery"
+                                                                        checked={formData.marketRecovery}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- BIM Required -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">BIM
+                                                        REQUIRED</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="bimRequired"
+                                                                        checked={formData.bimRequired}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Permit Fees -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">PERMIT
+                                                        FEES</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="permitFeesIncluded"
+                                                                        checked={formData.permitFeesIncluded}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col" colspan="2">INCLUDED</td>
+                                                <td colspan="5">
+                                                        <lightning-input type="number" label="$ AMOUNT"
+                                                                value={formData.permitAmount}
+                                                                onchange={handleInputChange} data-field="permitAmount"
+                                                                data-is-allowed-decimal="true" onkeydown={handleKeyDown}
+                                                                step="0.01">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- AMMR -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">AMMR</td>
+                                                <td colspan="9">
+                                                        <lightning-input value={formData.ammr}
+                                                                onchange={handleInputChange} data-field="ammr">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- PRE APP -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">PRE
+                                                        APP</td>
+                                                <td colspan="9">
+                                                        <lightning-input value={formData.preApp}
+                                                                onchange={handleInputChange} data-field="preApp">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- FPE REQUIRED -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">FPE
+                                                        REQUIRED</td>
+                                                <td colspan="9">
+                                                        <lightning-input value={formData.fpeRequired}
+                                                                onchange={handleInputChange} data-field="fpeRequired">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- AHJ -->
+                                        <tr class="section-light-blue">
+                                                <td class="label-col">AHJ</td>
+                                                <td colspan="9">
+                                                        <lightning-input value={formData.ahj}
+                                                                onchange={handleInputChange} data-field="ahj">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- System Design Section - Pink -->
+                                        <tr class="section-pink">
+                                                <td class="label-col">HAZARD
+                                                        CLASSIFICATION</td>
+                                                <td colspan="3">
+                                                        <lightning-input value={formData.hazardClassification}
+                                                                onchange={handleInputChange}
+                                                                data-field="hazardClassification">
+                                                        </lightning-input>
+                                                </td>
+                                                <td class="label-col" colspan="2">DENSITY
+                                                        REQUIRED?</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="densityRequired"
+                                                                        checked={formData.densityRequired}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="3">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">ATTIC
+                                                        SPRINKLERS
+                                                        REQ?</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="atticSprinklersRequired"
+                                                                        checked={formData.atticSprinklersRequired}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">HEAD
+                                                        TYPES</td>
+                                                <td colspan="2">ATTIC
+                                                        HEADS</td>
+                                                <td colspan="2">
+                                                        <lightning-input value={formData.headTypesAttic}
+                                                                onchange={handleInputChange}
+                                                                data-field="headTypesAttic"></lightning-input>
+                                                </td>
+                                                <td colspan="2">CEILING
+                                                        HEADS</td>
+                                                <td colspan="3">
+                                                        <lightning-input value={formData.headTypesCeiling}
+                                                                onchange={handleInputChange}
+                                                                data-field="headTypesCeiling"></lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">STANDPIPE
+                                                        QTY AND HOSE
+                                                        VALVES</td>
+                                                <td colspan="9">
+                                                        <lightning-input value={formData.standpipeQty}
+                                                                onchange={handleInputChange} data-field="standpipeQty">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">TEMP
+                                                        SP
+                                                        REQUIRED?</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="tempSpRequired"
+                                                                        checked={formData.tempSpRequired}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">FIRE
+                                                        PUMP</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="firePumpGpm"
+                                                                        checked={formData.firePumpGpm}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">GPM</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="firePumpPsi"
+                                                                        checked={formData.firePumpPsi}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">PSI</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="firePumpVoltage"
+                                                                        checked={formData.firePumpVoltage}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">VOLTAGE</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="firePumpTransferSwitch"
+                                                                        checked={formData.firePumpTransferSwitch}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">TRANSFER
+                                                        SWITCH</td>
+                                        </tr>
+
+                                        <!-- Materials -->
+                                        <tr class="section-pink">
+                                                <td class="label-col">BUY
+                                                        AMERICAN?</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="buyAmerican"
+                                                                        checked={formData.buyAmerican}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">STEEL
+                                                        PIPE</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="steelPipe"
+                                                                        checked={formData.steelPipe}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">IMPORT
+                                                        PIPE</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="importPipe"
+                                                                        checked={formData.importPipe}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">DYNAFLOW,
+                                                        DYNATHREAD
+                                                        OK?</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="dynaflow"
+                                                                        checked={formData.dynaflow}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-pink">
+                                                <td class="label-col">CPVC</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="cpvc"
+                                                                        checked={formData.cpvc}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="8">&nbsp;</td>
+                                        </tr>
+
+                                        <!-- Green Section - Head Details -->
+                                        <tr class="section-green">
+                                                <td class="label-col">#
+                                                        CEILING
+                                                        HEADS</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.ceilingHeads}
+                                                                onchange={handleInputChange} data-field="ceilingHeads"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">#
+                                                        ATTIC HEADS</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.atticHeads}
+                                                                onchange={handleInputChange} data-field="atticHeads"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">TYPE
+                                                        AND COLOR OF
+                                                        HEADS</td>
+                                                <td colspan="2">CEILING</td>
+                                                <td colspan="2">
+                                                        <lightning-input value={formData.headTypeColorCeiling}
+                                                                onchange={handleInputChange}
+                                                                data-field="headTypeColorCeiling">
+                                                        </lightning-input>
+                                                </td>
+                                                <td colspan="2">ATTIC</td>
+                                                <td colspan="3">
+                                                        <lightning-input value={formData.headTypeColorAttic}
+                                                                onchange={handleInputChange}
+                                                                data-field="headTypeColorAttic">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">METRAFLEX
+                                                        LOOPS</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="metraflexLoops"
+                                                                        checked={formData.metraflexLoops}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="2">SIZE
+                                                        <lightning-input value={formData.metraflexSize}
+                                                                onchange={handleInputChange} data-field="metraflexSize">
+                                                        </lightning-input>
+                                                </td>
+                                                <td colspan="5">QTY
+                                                        <lightning-input type="number" value={formData.metraflexQty}
+                                                                onchange={handleInputChange} data-field="metraflexQty"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">FLEXHEADS</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="flexheads"
+                                                                        checked={formData.flexheads}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="7">QTY
+                                                        <lightning-input type="number" value={formData.flexheadsQty}
+                                                                onchange={handleInputChange} data-field="flexheadsQty"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">#
+                                                        OF FDC</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.fdcCount}
+                                                                onchange={handleInputChange} data-field="fdcCount"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-green">
+                                                <td class="label-col">TYPE
+                                                        FDC</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_FreeStanding"
+                                                                        checked={formData.fdcType_FreeStanding}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_FreeStanding} />
+                                                </td>
+                                                <td class="text-col">FREE
+                                                        STANDING</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_2Way"
+                                                                        checked={formData.fdcType_2Way}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_2Way}  /></td>
+                                                <td class="text-col">2
+                                                        WAY</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_3Way"
+                                                                        checked={formData.fdcType_3Way}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_3Way}/></td>
+                                                <td class="text-col">3
+                                                        WAY</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_4Way"
+                                                                        checked={formData.fdcType_4Way}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_4Way} /></td>
+                                                <td class="text-col">4
+                                                        WAY</td>
+                                        </tr>
+
+                                        <!-- Second row for remaining 4 options -->
+                                        <tr class="section-green">
+                                                <td class="label-col"></td>
+                                                <!-- Empty label -->
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_SP"
+                                                                        checked={formData.fdcType_SP}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_SP} /></td>
+                                                <td class="text-col">SP</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_Flush"
+                                                                        checked={formData.fdcType_Flush}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_Flush} /></td>
+                                                <td class="text-col">FLUSH</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_CH"
+                                                                        checked={formData.fdcType_CH}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_CH} /></td>
+                                                <td class="text-col">CH</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="fdcType_PolBR"
+                                                                        checked={formData.fdcType_PolBR}
+                                                                        onchange={handleCheckboxChange} disabled={isTypeFdcCheckboxDisabled.fdcType_PolBR} /></td>
+                                                <td class="text-col" colspan="2">POL
+                                                        BR</td>
+                                        </tr>
+
+                                        <!-- Underground Scope - Yellow -->
+                                        <tr class="section-yellow">
+                                                <td class="label-col">UNDERGROUND
+                                                        SCOPE</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="trenching"
+                                                                        checked={formData.trenching}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">TRENCHING</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="sawcut"
+                                                                        checked={formData.sawcut}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">SAWCUT</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="import"
+                                                                        checked={formData.import}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col" colspan="4">IMPORT</td>
+                                        </tr>
+
+                                        <tr class="section-yellow">
+                                                <td class="label-col"></td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="export"
+                                                                        checked={formData.export}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">EXPORT</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="pave"
+                                                                        checked={formData.pave}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col">PAVE</td>
+                                                <td colspan="5">&nbsp;</td>
+                                        </tr>
+
+                                        <tr class="section-yellow">
+                                                <td class="label-col">BACKFLOW</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="backflowDDCV"
+                                                                        checked={formData.backflowDDCV}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td class="text-col" colspan="7">DDCV
+                                                        (else REDUCED
+                                                        PRESSURE)</td>
+                                        </tr>
+
+                                        <!-- Equipment - Blue -->
+                                        <tr class="section-blue">
+                                                <td class="label-col">SCISSOR
+                                                        LIFTS</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="scissorLifts"
+                                                                        checked={formData.scissorLifts}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="2">MONTHS
+                                                        <lightning-input type="number"
+                                                                value={formData.scissorLiftsMonths}
+                                                                onchange={handleInputChange}
+                                                                data-field="scissorLiftsMonths"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                                <td colspan="5">SIZE
+                                                        <lightning-input value={formData.scissorLiftsSize}
+                                                                onchange={handleInputChange}
+                                                                data-field="scissorLiftsSize"></lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-blue">
+                                                <td class="label-col">BOOM
+                                                        LIFTS</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="boomLifts"
+                                                                        checked={formData.boomLifts}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="2">MONTHS
+                                                        <lightning-input type="number" value={formData.boomLiftsMonths}
+                                                                onchange={handleInputChange}
+                                                                data-field="boomLiftsMonths"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                                <td colspan="5">SIZE
+                                                        <lightning-input value={formData.boomLiftsSize}
+                                                                onchange={handleInputChange} data-field="boomLiftsSize">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-blue">
+                                                <td class="label-col">FORKLIFT</td>
+                                                <td class="checkbox-col"><input
+                                                                        type="checkbox"
+                                                                        data-field="forklift"
+                                                                        checked={formData.forklift}
+                                                                        onchange={handleCheckboxChange} /></td>
+                                                <td colspan="2">MONTHS
+                                                        <lightning-input type="number" value={formData.forkliftMonths}
+                                                                onchange={handleInputChange} data-field="forkliftMonths"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}></lightning-input>
+                                                </td>
+                                                <td colspan="5">SIZE
+                                                        <lightning-input value={formData.forkliftSize}
+                                                                onchange={handleInputChange} data-field="forkliftSize">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- Hours - Purple -->
+                                        <tr class="section-purple">
+                                                <td class="label-col">DESIGN
+                                                        HOURS INC
+                                                        BIM</td>
+                                                <td colspan="8">
+                                                        <lightning-input type="number" value={formData.designHours}
+                                                                onchange={handleInputChange} data-field="designHours"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                                <td class="label-col">NO BIM</td>
+                                        </tr>
+
+                                        <tr class="section-purple">
+                                                <td class="label-col">FIELD
+                                                        HOURS</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.fieldHours}
+                                                                onchange={handleInputChange} data-field="fieldHours"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-purple">
+                                                <td class="label-col">FAB</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.fab}
+                                                                onchange={handleInputChange} data-field="fab"
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown}>
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <tr class="section-purple">
+                                                <td class="label-col">FM
+                                                        200</td>
+                                                <td colspan="9">
+                                                        <lightning-input type="number" value={formData.fm200}
+                                                                onchange={handleInputChange}
+                                                                data-is-allowed-decimal="false"
+                                                                onkeydown={handleKeyDown} data-field="fm200">
+                                                        </lightning-input>
+                                                </td>
+                                        </tr>
+
+                                        <!-- Comments - White -->
+                                        <tr class="section-white">
+                                                <td class="label-col">COMMENTS/OTHER</td>
+                                                <td colspan="9">
+                                                        <lightning-textarea value={formData.comments}
+                                                                onchange={handleInputChange} data-field="comments"
+                                                                rows="4">
+                                                        </lightning-textarea>
+                                                </td>
+                                        </tr>
+                                </tbody>
+                        </table>
+
+                </template>
+        </div>
+
+</template>

@@ -1,0 +1,194 @@
+<template>
+    <div class="modal-shell">
+        
+        <header class="slds-modal__header custom-header">
+            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                <div class="slds-text-heading_medium">Estimates Calculator</div>
+                <template if:true={showVersionControl}>
+                    <div class="slds-grid slds-grid_align-end slds-gutters_small">
+                        <div class="slds-col slds-text-align_right slds-m-top_medium">
+                            <template if:true={currentAutoSaveStatus}>
+                                <span class="slds-m-right_small">
+                                    <template if:true={isAutoSaving}>
+                                        <lightning-spinner size="xx-small" variant="brand"></lightning-spinner>
+                                        <span class="slds-m-left_x-small">Saving...</span>
+                                    </template>
+                                    <template if:true={isAutoSaved}>
+                                        <lightning-icon icon-name="utility:check" size="xx-small" variant="success"></lightning-icon>
+                                        <span class="slds-m-left_x-small">Auto-saved</span>
+                                    </template>
+                                </span>
+                            </template>
+                        </div>
+                        <div class="slds-col">
+                            <lightning-combobox
+                                variant="label-hidden"
+                                value={currentSelectedVersionId}
+                                options={currentVersionList}
+                                onchange={handleVersionChange}
+                                dropdown-alignment="auto"
+                                placeholder="Select Version"
+                                disabled={versionListDisabled}>
+                            </lightning-combobox>
+                            <template if:true={isLoadingVersion}>
+                                <div class="slds-m-top_x-small">
+                                    <lightning-spinner size="xx-small" variant="brand" alternative-text="Loading version..."></lightning-spinner>
+                                    <span class="slds-m-left_x-small slds-text-body_small">Loading version data...</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </header>
+
+        <div class="slds-modal__content custom-content" style="position: relative;">
+            <!-- Overlay spinner - shows on top of content when loading -->
+            <template if:true={isLoadingVersion}>
+                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.8); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <lightning-spinner alternative-text="Loading version data..." size="large" variant="brand"></lightning-spinner>
+                    <p class="slds-m-top_medium slds-text-heading_small">Loading version data and refreshing tables...</p>
+                </div>
+            </template>
+            <lightning-card>
+                <div class="card-body-flex">
+                    <!-- Tabset for all worksheets -->
+                    <lightning-tabset variant="scoped" active-tab-value={activeTab}>
+
+                        <!-- Tab 1: Bid Worksheet Underground -->
+                        <lightning-tab label="Bid Worksheet Underground"
+                            value="underground" onactive={handleTabChange}>
+                            <div class="tab-section slds-p-around_small">
+                                <!-- Accordion Sections for Underground Sheets -->
+                                <lightning-accordion
+                                    active-section-name={activeSections}
+                                    allow-multiple-sections-open>
+                                    <!-- Sheet #1 Section -->
+                                    <lightning-accordion-section name="sheet1"
+                                        label="Materials">
+                                        <span slot="label">
+                                            Materials
+                                            <span class="section-amount">(Subtotal:
+                                                ${sheet1Subtotal})</span>
+                                        </span>
+                                        <c-bid-worksheet-underground
+                                            record-id={recordId} sheet-number="1"
+                                            version-id-to-load={currentSelectedVersionId}
+                                            onsheetupdate={handleSheet1Update}
+                                            oncellchange={handleCellChangeGeneric}>
+                                        </c-bid-worksheet-underground>
+                                    </lightning-accordion-section>
+
+                                    <!-- Sheet #2 Section -->
+                                    <lightning-accordion-section name="sheet2"
+                                        label="Labor & Costs">
+                                        <span slot="label">
+                                            Labor & Costs
+                                            <span class="section-amount">(Total:
+                                                ${sheet2Subtotal})</span>
+                                        </span>
+                                        <c-bid-worksheet-underground-two
+                                            record-id={recordId} sheet-number="2"
+                                            sheet1-subtotal={sheet1Subtotal}
+                                            version-id-to-load={currentSelectedVersionId}
+                                            onsheetupdate={handleSheet2Update}
+                                            oncellchange={handleCellChangeGeneric}>
+                                        </c-bid-worksheet-underground-two>
+                                    </lightning-accordion-section>
+                                </lightning-accordion>
+                            </div>
+                        </lightning-tab>
+
+                        <!-- Tab 2: Bid Worksheet Estimates -->
+                        <lightning-tab label="Bid Worksheet Estimates"
+                            value="estimates" onactive={handleTabChange}>
+                            <div class="tab-section slds-p-around_small">
+                                <c-bid-worksheet-estimate
+                                    record-id={recordId}
+                                    sheet-number="1"
+                                    version-id-to-load={currentSelectedVersionId}
+                                    onsheetupdate={handleEstimateUpdate}
+                                    oncellchange={handleCellChangeGeneric}>
+                                </c-bid-worksheet-estimate>
+                            </div>
+                        </lightning-tab>
+
+                        <!-- Tab 3: Schedule of Values -->
+                        <lightning-tab label="Schedule of Values" value="schedule"
+                            onactive={handleTabChange}>
+                            <div class="tab-section slds-p-around_small">
+                                <c-schedule-of-values
+                                    record-id={recordId}
+                                    version-id-to-load={currentSelectedVersionId}
+                                    onsovupdate={handleSOVUpdate}
+                                    oncellchange={handleCellChangeGeneric}>
+                                </c-schedule-of-values>
+                            </div>
+                        </lightning-tab>
+
+                        <!-- Tab 4: Design Worksheet -->
+                        <lightning-tab
+                            label="Design Worksheet"
+                            value="design"
+                            onactive={handleTabChange}>
+                            <div class="tab-section slds-p-around_small">
+                                <c-design-worksheet
+                                    record-id={recordId}
+                                    version-id-to-load={currentSelectedVersionId}
+                                    oncellchange={handleCellChangeLightning}>
+                                </c-design-worksheet>
+                            </div>
+                        </lightning-tab>
+
+                    </lightning-tabset>
+                </div>
+            </lightning-card>
+        </div>
+
+        <footer class="slds-modal__footer custom-footer">
+            <!-- Save button for Underground tab -->
+            <template if:true={showSaveUndergroundButton}>
+                <lightning-button
+                    variant="brand"
+                    label="Save Underground Worksheet"
+                    icon-name="utility:save"
+                    onclick={handleSaveUnderground}
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+
+            <!-- Save button for Estimates tab -->
+            <template if:true={showSaveEstimatesButton}>
+                <lightning-button
+                    variant="brand"
+                    label="Save Estimate Worksheet"
+                    icon-name="utility:save"
+                    onclick={handleSaveEstimate}
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+
+            <!-- Save button for SOV tab -->
+            <template if:true={showSaveSOVButton}>
+                <lightning-button
+                    variant="brand"
+                    label="Save Schedule of Values"
+                    icon-name="utility:save"
+                    onclick={handleSaveSOV}
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+
+            <!-- Save button for Design tab -->
+            <template if:true={showSaveDesignButton}>
+                <lightning-button
+                    variant="brand"
+                    label="Save Design Worksheet"
+                    icon-name="utility:save"
+                    onclick={handleSaveDesign}
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+        </footer>
+    </div>
+</template>
