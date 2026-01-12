@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Custom Bid Worksheet Permissions</label>
+    <tabSettings>
+        <tab>Estimates_Calculator</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ITM_Estimate_Calculator</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+</PermissionSet>
