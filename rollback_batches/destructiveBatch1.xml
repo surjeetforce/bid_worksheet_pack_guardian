@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>Opportunity.Estimates_Calculator</members>
+        <members>Opportunity.ITM_Bid_Calculator</members>
+        <name>QuickAction</name>
+    </types>
+    <types>
+        <members>Estimates_Calculator</members>
+        <members>ITM_Estimate_Calculator</members>
+        <name>CustomTab</name>
+    </types>
+    <version>65.0</version>
+</Package>

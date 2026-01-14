@@ -1,4 +1,4 @@
-public with sharing class ITMBidWorksheetController {
+public without sharing class ITMBidWorksheetController {
     
     private static final String ITM_SHEET_TITLE = 'ITM_Bid_Worksheet';
     private static final String ITM_AUTO_SAVE_TITLE = 'ITM_Bid_Worksheet_AutoSave';

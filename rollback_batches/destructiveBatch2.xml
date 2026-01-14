@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>bidWorksheetEstimate</members>
+        <members>bidWorksheetUnderground</members>
+        <members>bidWorksheetUndergroundParent</members>
+        <members>bidWorksheetUndergroundTwo</members>
+        <members>designWorksheet</members>
+        <members>itmBidWorksheet</members>
+        <members>scheduleOfValues</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>BidEstimateTabHost</members>
+        <members>BidEstimateWrapper</members>
+        <members>ItmBidWorksheetTabHost</members>
+        <members>ItmBidWorksheetWrapper</members>
+        <name>AuraDefinitionBundle</name>
+    </types>
+    <version>65.0</version>
+</Package>

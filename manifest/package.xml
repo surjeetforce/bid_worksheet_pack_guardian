@@ -44,10 +44,6 @@
 		<name>LightningComponentBundle</name>
 	</types>
 	<types>
-		<members>*</members>
-		<name>CustomMetadata</name>
-	</types>
-	<types>
 		<members>Opportunity.Estimates_Calculator</members>
 		<members>Opportunity.ITM_Bid_Calculator</members>
 		<name>QuickAction</name>

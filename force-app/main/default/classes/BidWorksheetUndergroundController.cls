@@ -1,4 +1,4 @@
-public with sharing class BidWorksheetUndergroundController{
+public without sharing class BidWorksheetUndergroundController{
     private static final String SHEET_TITLE = 'UndergroundBid';
     private static final String FILE_NAME = 'UndergroundBid.json';
     private static final String AUTO_SAVE_TITLE = 'UndergroundBid_AutoSave';
