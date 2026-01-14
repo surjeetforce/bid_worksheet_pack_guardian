@@ -43,6 +43,7 @@
 		<members>scheduleOfValues</members>
 		<name>LightningComponentBundle</name>
 	</types>
+	
 	<types>
 		<members>Opportunity.Estimates_Calculator</members>
 		<members>Opportunity.ITM_Bid_Calculator</members>
