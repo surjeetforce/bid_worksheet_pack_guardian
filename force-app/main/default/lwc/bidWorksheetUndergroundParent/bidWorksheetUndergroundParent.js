@@ -112,15 +112,8 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     _isInitializing = true; // Flag to prevent autosave during component initialization
 
     connectedCallback() {
-        console.log('🔵 [connectedCallback] Component initializing', {
-            recordId: this.recordId,
-            activeTab: this.activeTab,
-            timestamp: new Date().toISOString()
-        });
-        
         // Set initialization flag - will be cleared after components are ready
         this._isInitializing = true;
-        console.log('🔵 [connectedCallback] _isInitializing set to true');
         
         // Immediately set selectedVersionId to 'draft' for the active tab so child components get the right value
         const config = this.getCurrentConfig();
@@ -135,35 +128,26 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         }
         
         if (this.recordId && this.activeTab === 'underground') {
-            console.log('🔵 [connectedCallback] Loading version data for underground tab');
             this.loadVersionData();
         }
         
         // Clear initialization flag after a delay to allow all components to initialize
         setTimeout(() => {
-            console.log('📍 [connectedCallback] Clearing initialization flag, autosave now enabled', {
-                timestamp: new Date().toISOString(),
-                elapsed: '3000ms'
-            });
             this._isInitializing = false;
         }, 3000); // Give enough time for both sheets to initialize and load data
     }
 
     handleTabChange(event) {
-        console.log('Tab change event:', event);
         const selectedTab = event.target.value;
         this.activeTab = selectedTab;
-        console.log('Tab changed to:', selectedTab);
         
         // Load version data for the new tab
         if (this.recordId) {
             // Set initialization flag when switching tabs
             this._isInitializing = true;
             this.loadVersionDataForTab(selectedTab);
-            
             // Clear initialization flag after components load
             setTimeout(() => {
-                console.log('📍 Parent: Clearing initialization flag after tab switch');
                 this._isInitializing = false;
             }, 3000);
         }
@@ -197,6 +181,25 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         }
 
         try {
+
+            if (tabName === 'schedule') {
+                
+                // Get current job name from design worksheet component if it exists
+                const designComponent = this.template.querySelector('c-design-worksheet');
+                const currentJobName = designComponent ? designComponent.currentJobName : null;
+
+                setTimeout(() => {
+                    const sovComponent = this.template.querySelector('c-schedule-of-values');
+                    if (sovComponent) {
+                        try {
+                            sovComponent.populateJobNameFromDesign(currentJobName);
+                        } catch (err) {
+                            console.error('Error calling refreshJobNameFromDesign on SOV component', err);
+                        }
+                    }
+                }, 0);
+            }
+
             // Load next version number first
             await this.loadNextVersionNumberForTab(tabName);
             // Then load version list
@@ -319,15 +322,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         if (!config) return;
 
         setTimeout(() => {
-            console.log(`🔄 Updating children versionIdToLoad for ${tabName} to:`, config.selectedVersionId);
             
             config.childComponents.forEach(selector => {
                 const component = this.template.querySelector(selector);
                 if (component) {
-                    console.log(`✅ Setting ${selector} versionIdToLoad`);
                     component.versionIdToLoad = config.selectedVersionId;
                 } else {
-                    console.warn(`⚠️ ${selector} component not found`);
                 }
             });
         }, 200);
@@ -391,7 +391,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         if (config.selectedVersionId === 'draft' && newVersionId !== 'draft') {
             // Wait for any in-progress autosave to complete
             if (config.autoSaveStatus === 'saving') {
-                console.log('⏳ Autosave in progress, waiting for it to complete...');
                 // Wait up to 5 seconds for autosave to complete
                 let waitCount = 0;
                 while (config.autoSaveStatus === 'saving' && waitCount < 25) {
@@ -402,7 +401,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             
             // Check if there's a pending autosave (user made changes but debounce hasn't fired yet)
             if (config.autoSaveTimeout) {
-                console.log('💾 Unsaved changes detected, saving before switching version...');
                 
                 // Clear the pending timeout
                 clearTimeout(config.autoSaveTimeout);
@@ -411,7 +409,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 // Save immediately
                 await this.performAutoSaveGeneric(tabName);
                 
-                console.log('✅ Draft changes saved, now switching to version');
             }
         }
         
@@ -555,36 +552,30 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         const { subtotal } = event.detail;
         this.sheet1Subtotal = subtotal;
 
-        console.log(`Sheet #1 Subtotal updated: $${subtotal}`);
-        console.log(`Passing to Sheet #2...`);
     }
 
     handleSheet2Update(event) {
         const { totalPrice } = event.detail;
         this.sheet2Subtotal = totalPrice;
 
-        console.log(`Sheet #2 Total updated: $${totalPrice}`);
     }
 
     handleEstimateUpdate(event) {
         const { grandTotal } = event.detail;
         this.estimateGrandTotal = grandTotal;
 
-        console.log(`Estimate Grand Total updated: $${grandTotal}`);
     }
 
     handleSOVUpdate(event) {
         const { totalSOV } = event.detail;
         this.sovTotal = totalSOV;
 
-        console.log(`SOV Total updated: $${totalSOV}`);
     }
 
     async handleSaveUnderground() {
         this.isSaving = true;
 
         try {
-            console.log('Starting Underground save process...');
 
             if (!this.activeSections.includes('sheet1')) {
                 this.activeSections = [...this.activeSections, 'sheet1'];
@@ -602,7 +593,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 throw new Error('Sheet components not found. Please ensure both sections are expanded.');
             }
 
-            console.log('Collecting sheet data...');
             const sheet1Data = await sheet1Component.saveSheet();
             const sheet2Data = await sheet2Component.saveSheet();
 
@@ -620,7 +610,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
 
-            console.log('Saving worksheet to file...');
             const base64Payload = this.encodeData(payload);
             if (!this.recordId) {
                 throw new Error('Opportunity ID is required');
@@ -632,7 +621,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 base64Data: base64Payload
             });
 
-            console.log('✅ Worksheet saved to file');
 
             // Refresh version data after save
             await this.loadVersionDataForTab('underground');
@@ -646,20 +634,16 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
             // Don't auto-load - user is already working on the draft
 
-            console.log('Extracting Opportunity field data...');
             const fieldData = await this.extractOpportunityFieldData('underground');
 
             if (Object.keys(fieldData).length > 0) {
-                console.log('Updating Opportunity fields:', Object.keys(fieldData));
                 await updateOpportunityFields({
                     opportunityId: targetId,
                     fieldDataJson: JSON.stringify(fieldData)
                 });
-                console.log('✅ Opportunity fields updated');
 
                 this.showToast('Success', 'Underground Worksheet saved successfully!', 'success');
             } else {
-                console.warn('⚠️ No Opportunity fields to update');
                 this.showToast('Success', 'Underground Worksheet saved successfully!', 'success');
             }
 
@@ -676,7 +660,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         this.isSaving = true;
 
         try {
-            console.log('Starting Design Worksheet save...');
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -686,7 +669,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 throw new Error('Design Worksheet component not found');
             }
 
-            console.log('Found design component, collecting data...');
 
             // ⭐ UPDATED: Call saveSheet instead of saveWorksheet
             if (typeof designComponent.saveSheet !== 'function') {
@@ -694,7 +676,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
 
             const designData = await designComponent.saveSheet();
-            console.log('Design data collected:', designData);
 
             // Validate designData
             if (!designData) {
@@ -713,7 +694,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 formData: designData.formData
             };
 
-            console.log('Payload created, encoding...');
             const base64Payload = this.encodeData(payload);
             if (!this.recordId) {
                 throw new Error('Opportunity ID is required');
@@ -725,7 +705,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 base64Data: base64Payload
             });
 
-            console.log('✅ Design Worksheet file saved!');
 
             // Refresh version data after save
             await this.loadVersionDataForTab('design');
@@ -737,11 +716,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
 
             // ⭐ Extract and update Opportunity fields from Design
-            console.log('Extracting Opportunity field data from Design...');
             let fieldData = {};
             try {
                 fieldData = await this.extractOpportunityFieldData('design', designData, null);
-                console.log('📦 Field data to send to Apex:', fieldData);
             } catch (extractError) {
                 console.error('❌ Error extracting field data:', extractError);
                 // Continue with empty fieldData - don't fail the entire save
@@ -750,13 +727,11 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
             // Validate fieldData is an object
             if (!fieldData || typeof fieldData !== 'object' || Array.isArray(fieldData)) {
-                console.warn('⚠️ Field data is invalid, skipping Opportunity field update');
                 this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
             } else {
                 const fieldKeys = Object.keys(fieldData);
                 if (fieldKeys.length > 0) {
                     try {
-                        console.log('Updating Opportunity fields:', fieldKeys);
                         const fieldDataJson = JSON.stringify(fieldData);
                         if (!fieldDataJson || fieldDataJson === '{}') {
                             throw new Error('Field data JSON is empty or invalid');
@@ -765,7 +740,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             opportunityId: targetId,
                             fieldDataJson: fieldDataJson
                         });
-                        console.log('✅ Opportunity fields updated');
 
                         this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
                     } catch (updateError) {
@@ -776,21 +750,11 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             'warning');
                     }
                 } else {
-                    console.warn('⚠️ No Opportunity fields to update');
                     this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
                 }
             }
 
         } catch (error) {
-            console.error('❌ ERROR in handleSaveDesign:', error);
-            console.error('❌ Error name:', error.name);
-            console.error('❌ Error message:', error.message);
-            console.error('❌ Error stack:', error.stack);
-
-            if (error.body) {
-                console.error('❌ Error body:', JSON.stringify(error.body, null, 2));
-            }
-
             this.logError('Error saving Design Worksheet', error);
             const message = error?.body?.message || error?.message || 'Unknown error';
             this.showToast('Error', 'Failed to save: ' + message, 'error');
@@ -803,8 +767,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         this.isSaving = true;
 
         try {
-            console.log('Starting Estimate save process...');
-            console.log('Target file: BidWorksheet_Estimate.json');
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -812,28 +774,21 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
             if (!estimateComponent) {
                 const estimateComponents = this.template.querySelectorAll('c-bid-worksheet-estimate');
-                console.log('Found', estimateComponents?.length || 0, 'Estimate components via querySelectorAll');
                 if (estimateComponents && estimateComponents.length > 0) {
                     estimateComponent = estimateComponents[0];
                 }
             }
 
             if (!estimateComponent) {
-                console.error('Estimate component not found');
                 throw new Error('Estimate component not found. Please ensure you are on the Estimates tab.');
             }
 
-            console.log('Found estimate component, collecting data...');
 
             if (typeof estimateComponent.saveSheet !== 'function') {
                 throw new Error('Estimate saveSheet method not available');
             }
 
             const estimateData = await estimateComponent.saveSheet();
-            console.log('Estimate data collected:', estimateData);
-            console.log('Section 1:', estimateData?.section1?.length || 0, 'items');
-            console.log('Section 2:', estimateData?.section2?.length || 0, 'items');
-            console.log('Section 3:', estimateData?.section3?.length || 0, 'items');
 
             const payload = {
                 worksheetType: 'Estimate',
@@ -851,20 +806,17 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
 
-            console.log('Estimate payload created, encoding...');
             const base64Payload = this.encodeData(payload);
             if (!this.recordId) {
                 throw new Error('Opportunity ID is required');
             }
             const targetId = this.recordId;
-            console.log('Saving Estimate to Opportunity:', targetId);
 
             await saveEstimateSheet({
                 opportunityId: targetId,
                 base64Data: base64Payload
             });
 
-            console.log('Estimate save successful! File: BidWorksheet_Estimate.json');
 
             // Refresh version data after save
             await this.loadVersionDataForTab('estimates');
@@ -876,22 +828,17 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
 
             // ⭐ Extract and update Opportunity fields from Estimate
-            console.log('Extracting Opportunity field data from Estimate...');
             const fieldData = await this.extractOpportunityFieldData('estimate', estimateData);
 
-            console.log('📦 Field data to send to Apex:', fieldData);
 
             if (Object.keys(fieldData).length > 0) {
-                console.log('Updating Opportunity fields:', Object.keys(fieldData));
                 await updateOpportunityFields({
                     opportunityId: targetId,
                     fieldDataJson: JSON.stringify(fieldData)
                 });
-                console.log('✅ Opportunity fields updated');
 
                 this.showToast('Success', 'Estimate Worksheet saved successfully!', 'success');
             } else {
-                console.warn('⚠️ No Opportunity fields to update');
                 this.showToast('Success', 'Estimate Worksheet saved successfully!', 'success');
             }
 
@@ -908,26 +855,21 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         this.isSaving = true;
 
         try {
-            console.log('Starting Schedule of Values save process...');
-            console.log('Target file: BidWorksheet_SOV.json');
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
             let sovComponent = this.template.querySelector('c-schedule-of-values');
 
             if (!sovComponent) {
-                console.error('SOV component not found');
                 throw new Error('Schedule of Values component not found. Please ensure you are on the SOV tab.');
             }
 
-            console.log('Found SOV component, collecting data...');
 
             if (typeof sovComponent.saveSheet !== 'function') {
                 throw new Error('SOV saveSheet method not available');
             }
 
             const sovData = await sovComponent.saveSheet();
-            console.log('SOV data collected:', sovData);
 
             // Validate sovData
             if (!sovData) {
@@ -947,20 +889,17 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
 
-            console.log('SOV payload created, encoding...');
             const base64Payload = this.encodeData(payload);
             if (!this.recordId) {
                 throw new Error('Opportunity ID is required');
             }
             const targetId = this.recordId;
-            console.log('Saving SOV to Opportunity:', targetId);
 
             await saveSOVSheet({
                 opportunityId: targetId,
                 base64Data: base64Payload
             });
 
-            console.log('✅ SOV save successful! File: BidWorksheet_SOV.json');
 
             // Refresh version data after save
             await this.loadVersionDataForTab('schedule');
@@ -972,14 +911,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
 
             // ⭐ Extract and update Opportunity fields from SOV
-            console.log('Extracting Opportunity field data from SOV...', sovData);
             let fieldData = {};
             try {
                 fieldData = await this.extractOpportunityFieldData('sov', null, {
                     summaryRows: sovData.summaryRows || [],
                     summary: payload.summary
                 });
-                console.log('📦 Field data to send to Apex:', fieldData);
             } catch (extractError) {
                 console.error('❌ Error extracting field data:', extractError);
                 // Continue with empty fieldData - don't fail the entire save
@@ -988,13 +925,11 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
             // Validate fieldData is an object
             if (!fieldData || typeof fieldData !== 'object' || Array.isArray(fieldData)) {
-                console.warn('⚠️ Field data is invalid, skipping Opportunity field update');
                 this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
             } else {
                 const fieldKeys = Object.keys(fieldData);
                 if (fieldKeys.length > 0) {
                     try {
-                        console.log('Updating Opportunity fields:', fieldKeys);
                         const fieldDataJson = JSON.stringify(fieldData);
                         if (!fieldDataJson || fieldDataJson === '{}') {
                             throw new Error('Field data JSON is empty or invalid');
@@ -1003,7 +938,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             opportunityId: targetId,
                             fieldDataJson: fieldDataJson
                         });
-                        console.log('✅ Opportunity fields updated');
 
                         this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
                     } catch (updateError) {
@@ -1014,7 +948,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             'warning');
                     }
                 } else {
-                    console.warn('⚠️ No Opportunity fields to update');
                     this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
                 }
             }
@@ -1056,52 +989,25 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
      * Generic cell change handler (for native HTML inputs using oninput)
      */
     handleCellChangeGeneric(event) {
-        // ⭐ DEBUG: Log all cellchange events
-        console.log('🔍 [handleCellChangeGeneric] Event received:', {
-            timestamp: new Date().toISOString(),
-            activeTab: this.activeTab,
-            _isInitializing: this._isInitializing,
-            isLoadingVersion: this.isLoadingVersion,
-            eventDetail: event?.detail,
-            eventType: event?.type,
-            eventTarget: event?.target?.tagName,
-            stackTrace: new Error().stack
-        });
         
         // Don't trigger autosave during initialization or version loading
         if (this._isInitializing || this.isLoadingVersion) {
-            console.log('📍 [handleCellChangeGeneric] BLOCKED - Ignoring cellchange during initialization/version load', {
-                _isInitializing: this._isInitializing,
-                isLoadingVersion: this.isLoadingVersion,
-                timestamp: new Date().toISOString()
-            });
             return;
         }
         
         const config = this.getCurrentConfig();
         if (!config) {
-            console.warn('⚠️ [handleCellChangeGeneric] No config found for activeTab:', this.activeTab);
             return;
         }
         
-        console.log('✅ [handleCellChangeGeneric] Processing cellchange - will trigger autosave in 2 seconds', {
-            activeTab: this.activeTab,
-            existingTimeout: config.autoSaveTimeout ? 'exists' : 'none',
-            timestamp: new Date().toISOString()
-        });
         
         // Debounce auto-save - clear existing timeout
         if (config.autoSaveTimeout) {
-            console.log('🔄 [handleCellChangeGeneric] Clearing existing autosave timeout');
             clearTimeout(config.autoSaveTimeout);
         }
 
         // Set new timeout for 2 seconds
         const timeoutId = setTimeout(() => {
-            console.log('⏰ [handleCellChangeGeneric] Autosave timeout fired - calling performAutoSaveGeneric', {
-                activeTab: this.activeTab,
-                timestamp: new Date().toISOString()
-            });
             this.performAutoSaveGeneric(this.activeTab);
         }, 2000);
         
@@ -1114,10 +1020,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
         };
         
-        console.log('💾 [handleCellChangeGeneric] Autosave timeout scheduled', {
-            timeoutId: timeoutId,
-            activeTab: this.activeTab
-        });
     }
 
     /**
@@ -1139,22 +1041,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
      * Generic autosave performer for any tab
      */
     async performAutoSaveGeneric(tabName) {
-        console.log('🚀 [performAutoSaveGeneric] Starting autosave', {
-            tabName: tabName,
-            activeTab: this.activeTab,
-            _isInitializing: this._isInitializing,
-            isLoadingVersion: this.isLoadingVersion,
-            recordId: this.recordId,
-            timestamp: new Date().toISOString(),
-            callStack: new Error().stack
-        });
         
         const config = this.getConfigForTab(tabName);
         if (!config || !this.recordId) {
-            console.warn('⚠️ [performAutoSaveGeneric] Aborting - no config or recordId', {
-                hasConfig: !!config,
-                hasRecordId: !!this.recordId
-            });
             return;
         }
 
@@ -1174,7 +1063,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             ).filter(c => c !== null);
 
             if (components.length === 0) {
-                console.warn(`No components found for ${tabName} auto-save`);
                 this.worksheetConfig = {
                     ...this.worksheetConfig,
                     [tabName]: {
@@ -1195,7 +1083,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 const sheet1Component = components[0];
                 const sheet2Component = components[1];
                 if (!sheet1Component || !sheet2Component) {
-                    console.warn('Underground sheet components not found for auto-save');
                     this.worksheetConfig = {
                         ...this.worksheetConfig,
                         [tabName]: {
@@ -1223,7 +1110,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             } else if (tabName === 'estimates') {
                 const estimateComponent = components[0];
                 if (!estimateComponent) {
-                    console.warn('Estimate component not found for auto-save');
                     this.worksheetConfig = {
                         ...this.worksheetConfig,
                         [tabName]: {
@@ -1252,7 +1138,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             } else if (tabName === 'schedule') {
                 const sovComponent = components[0];
                 if (!sovComponent) {
-                    console.warn('SOV component not found for auto-save');
                     this.worksheetConfig = {
                         ...this.worksheetConfig,
                         [tabName]: {
@@ -1278,7 +1163,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             } else if (tabName === 'design') {
                 const designComponent = components[0];
                 if (!designComponent) {
-                    console.warn('Design component not found for auto-save');
                     this.worksheetConfig = {
                         ...this.worksheetConfig,
                         [tabName]: {
@@ -1314,7 +1198,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
 
-            console.log(`✅ Auto-saved ${tabName} worksheet`);
 
             // Clear status after 2 seconds
             setTimeout(() => {
@@ -1370,27 +1253,21 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const sheet2Data = await sheet2Component.saveSheet();
             const tableRows = sheet2Data.lineItems || [];
 
-            console.log('📊 Extracting Underground fields from', tableRows.length, 'rows');
 
             // Field #1: Pump Direct Cost Total (Row 83, Column R = right.gross)
             const pumpRow = tableRows.find(r => r.excelRow === 83);
             if (pumpRow && pumpRow.right && pumpRow.right.gross) {
                 fieldData.Pump_Direct_Cost_Total__c = parseFloat(pumpRow.right.gross) || 0;
-                console.log('✅ Pump Direct Cost Total (R83):', fieldData.Pump_Direct_Cost_Total__c);
             } else {
-                console.warn('⚠️ Row 83 (Pump) not found or has no gross value');
             }
 
             // Field #2: FHV Standpipe Total Direct Cost (Row 84, Column R = right.gross)
             const fhvRow = tableRows.find(r => r.excelRow === 84);
             if (fhvRow && fhvRow.right && fhvRow.right.gross) {
                 fieldData.FHV_Standpipe_Total_Direct_Cost__c = parseFloat(fhvRow.right.gross) || 0;
-                console.log('✅ FHV Standpipe Total (R84):', fieldData.FHV_Standpipe_Total_Direct_Cost__c);
             } else {
-                console.warn('⚠️ Row 84 (FHV) not found or has no gross value');
             }
 
-            console.log('📊 Extracted', Object.keys(fieldData).length, 'Underground fields');
 
             return fieldData;
 
@@ -1401,12 +1278,10 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             // ========================================
 
             if (!estimateData || !estimateData.section3) {
-                console.warn('⚠️ No estimate data provided for field extraction');
                 return fieldData;
             }
 
             const section3Items = estimateData.section3;
-            console.log('📊 Extracting Estimate fields from', section3Items.length, 'section 3 items');
 
             // Helper function to find item by excel row and column
             const findItem = (excelRow, column) => {
@@ -1428,14 +1303,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const i155 = findItem(155, 'Left');
             if (i155) {
                 fieldData.GRAND_TOTAL_MATERIAL_COST__c = getDecimal(i155, 'gross');
-                console.log('✅ Grand Total Material Cost (I155):', fieldData.GRAND_TOTAL_MATERIAL_COST__c);
             }
 
             // Row 157 - Head Count (Left, Size field contains headcount) - Column C
             const c157 = findItem(157, 'Left');
             if (c157 && c157.size) {
                 fieldData.Head_Count__c = parseFloat(c157.size) || 0;
-                console.log('✅ Head Count (C157):', fieldData.Head_Count__c);
             }
 
             // Row 184 - Labor (FM+7th Period)
@@ -1444,7 +1317,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.LABOR_FM_7TH_PERIOD_QUANTITY__c = getDecimal(e184, 'quantity');
                 fieldData.LABOR_FM_7TH_PERIOD_UNIT__c = getDecimal(e184, 'unitPrice');
                 fieldData.LABOR_FM_7TH_PERIOD_GROSS__c = getDecimal(e184, 'gross');
-                console.log('✅ Labor FM+7th Period (E184, G184, I184)');
             }
 
             // Row 185 - Engineering Half Hour Head
@@ -1453,7 +1325,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.ENGINEERING_HALF_HOUR_HEAD_QUANTITY__c = getDecimal(e185, 'quantity');
                 fieldData.ENGINEERING_HALF_HOUR_HEAD_UNIT__c = getDecimal(e185, 'unitPrice');
                 fieldData.ENGINEERING_HALF_HOUR_HEAD_GROSS__c = getDecimal(e185, 'gross');
-                console.log('✅ Engineering Half Hour Head (E185, G185, I185)');
             }
 
             // Row 186 - BIM
@@ -1462,7 +1333,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.BIM_QUANTITY__c = getDecimal(e186, 'quantity');
                 fieldData.BIM_UNIT__c = getDecimal(e186, 'unitPrice');
                 fieldData.BIM_GROSS__c = getDecimal(e186, 'gross');
-                console.log('✅ BIM (E186, G186, I186)');
             }
 
             // Row 187 - Fabrication Quarter Hour Per
@@ -1471,14 +1341,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.FABRICATION_QUARTER_HOUR_PER_QUANTITY__c = getDecimal(e187, 'quantity');
                 fieldData.FABRICATION_QUARTER_HOUR_PER_UNIT__c = getDecimal(e187, 'unitPrice');
                 fieldData.FABRICATION_QUARTER_HOUR_PER_GROSS__c = getDecimal(e187, 'gross');
-                console.log('✅ Fabrication Quarter Hour Per (E187, G187, I187)');
             }
 
             // Row 160 - Total Direct Cost (Right, Gross) - Column R
             const r160 = findItem(160, 'Right');
             if (r160) {
                 fieldData.TOTAL_DIRECT_COST_GROSS__c = getDecimal(r160, 'gross');
-                console.log('✅ Total Direct Cost (R160):', fieldData.TOTAL_DIRECT_COST_GROSS__c);
             }
 
             // Row 161 - % Overhead (Right)
@@ -1487,14 +1355,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.OVERHEAD_QUANTITY__c = getDecimal(n161, 'quantity');
                 fieldData.OVERHEAD_UNIT__c = getDecimal(n161, 'unitPrice');
                 fieldData.OVERHEAD_GROSS__c = getDecimal(n161, 'gross');
-                console.log('✅ Overhead (N161, P161, R161)');
             }
 
             // Row 163 - Subtotal (Right, Gross) - Column R
             const r163 = findItem(163, 'Right');
             if (r163) {
                 fieldData.SUBTOTAL_GROSS__c = getDecimal(r163, 'gross');
-                console.log('✅ Subtotal (R163):', fieldData.SUBTOTAL_GROSS__c);
             }
 
             // Row 164 - % Gain (Right)
@@ -1503,35 +1369,29 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.GAIN_QUANTITY__c = getDecimal(n164, 'quantity');
                 fieldData.GAIN_UNIT__c = getDecimal(n164, 'unitPrice');
                 fieldData.GAIN_GROSS__c = getDecimal(n164, 'gross');
-                console.log('✅ Gain (N164, P164, R164)');
             }
 
             // Row 166 - Total Quote Price (Right, Gross) - Column R
             const r166 = findItem(166, 'Right');
             if (r166) {
                 fieldData.TOTAL_QUOTE_PRICE__c = getDecimal(r166, 'gross');
-                console.log('✅ Total Quote Price (R166):', fieldData.TOTAL_QUOTE_PRICE__c);
             }
 
             const r167 = findItem(167, 'Right');
             if (r167) {
-                console.log('r167 :- ', r167);
                 fieldData.PRICE_MINUS_SP_PUMP_BF_MFLEX_DON_T_C__c = getDecimal(r167, 'gross');
-                console.log('PRICE MINUS SP, PUMP, BF, MFLEX (DON’T CHANGE) :- ', fieldData.PRICE_MINUS_SP_PUMP_BF_MFLEX_DON_T_C__c);
             }
 
             // Row 168 - Gross Margin (Right, Quantity) - Column N
             const n168 = findItem(168, 'Right');
             if (n168) {
                 fieldData.GROSS_MARGIN__c = getDecimal(n168, 'quantity');
-                console.log('✅ Gross Margin (N168):', fieldData.GROSS_MARGIN__c);
             }
 
             // Row 169 - Bond Amount (Right, Quantity) - Column N
             const n169 = findItem(169, 'Right');
             if (n169) {
                 fieldData.BOND_AMOUNT__c = getDecimal(n169, 'quantity');
-                console.log('✅ Bond Amount (N169):', fieldData.BOND_AMOUNT__c);
             }
 
             // Row 173 - Material Per Head (Right)
@@ -1540,7 +1400,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.MATERIAL_PER_HEAD_QUANTITY__c = getDecimal(n173, 'quantity');
                 fieldData.MATERIAL_PER_HEAD_UNIT__c = getDecimal(n173, 'unitPrice');
                 fieldData.MATERIAL_PER_HEAD_GROSS__c = getDecimal(n173, 'gross');
-                console.log('✅ Material Per Head (N173, P173, R173)');
             }
 
             // Row 174 - Direct Cost Per Head (Right)
@@ -1549,7 +1408,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.DIRECT_COST_PER_HEAD_QUANTITY__c = getDecimal(n174, 'quantity');
                 fieldData.DIRECT_COST_PER_HEAD_UNIT__c = getDecimal(n174, 'unitPrice');
                 fieldData.DIRECT_COST_PER_HEAD_GROSS__c = getDecimal(n174, 'gross');
-                console.log('✅ Direct Cost Per Head (N174, P174, R174)');
             }
 
             // Row 175 - Building Sq. Footage (Right)
@@ -1557,7 +1415,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             if (p175) {
                 fieldData.BUILDING_SQ_FOOTAGE_UNIT__c = getDecimal(p175, 'unitPrice');
                 fieldData.BUILDING_SQ_FOOTAGE_GROSS__c = getDecimal(p175, 'gross');
-                console.log('✅ Building Sq Footage (P175, R175)');
             }
 
             // Row 176 - Sales Cost Per Head (Right)
@@ -1566,17 +1423,14 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 fieldData.SALES_COST_PER_HEAD_QUANTITY__c = getDecimal(n176, 'quantity');
                 fieldData.SALES_COST_PER_HEAD_UNIT__c = getDecimal(n176, 'unitPrice');
                 fieldData.SALES_COST_PER_HEAD_GROSS__c = getDecimal(n176, 'gross');
-                console.log('✅ Sales Cost Per Head (N176, P176, R176)');
             }
 
             // Row 178 - Cost Per Square Foot (Right, Gross) - Column R
             const r178 = findItem(178, 'Right');
             if (r178) {
                 fieldData.COST_PER_SQUARE_FOOT__c = getDecimal(r178, 'gross');
-                console.log('✅ Cost Per Square Foot (R178):', fieldData.COST_PER_SQUARE_FOOT__c);
             }
 
-            console.log('📊 Extracted', Object.keys(fieldData).length, 'Estimate fields');
             return fieldData;
 
         } else if (componentType === 'sov') {
@@ -1586,18 +1440,14 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             // ========================================
 
             if (!sovData) {
-                console.error('❌ SOV data is null or undefined');
                 return fieldData;
             }
 
             if (!sovData.summaryRows || !Array.isArray(sovData.summaryRows)) {
-                console.error('❌ SOV summaryRows is missing or invalid');
-                console.error('❌ sovData keys:', Object.keys(sovData || {}));
                 return fieldData;
             }
 
             const summaryRows = sovData.summaryRows;
-            console.log('📊 Extracting SOV fields from', summaryRows.length, 'summary rows');
 
             // Helper to find row by label (case-insensitive, flexible matching)
             const findRowByLabel = (searchLabel) => {
@@ -1613,88 +1463,74 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const designRow = findRowByLabel('design');
             if (designRow) {
                 fieldData.Design_Total__c = parseFloat(designRow.value) || 0;
-                console.log('✅ Design Total:', fieldData.Design_Total__c);
             }
 
             // Row 2: 3D BIM (LUMP)
             const bimRow = findRowByLabel('3d bim');
             if (bimRow) {
                 fieldData.X3D_BIM_Total__c = parseFloat(bimRow.value) || 0;
-                console.log('✅ 3D BIM Total:', fieldData.X3D_BIM_Total__c);
             }
 
             // Row 3: MATERIAL / FAB
             const materialRow = findRowByLabel('material');
             if (materialRow) {
                 fieldData.Material_FAB_Total__c = parseFloat(materialRow.value) || 0;
-                console.log('✅ Material/FAB Total:', fieldData.Material_FAB_Total__c);
             }
 
             // Row 4: ROUGH IN
             const roughInRow = findRowByLabel('rough in');
             if (roughInRow) {
                 fieldData.Rough_In_Total__c = parseFloat(roughInRow.value) || 0;
-                console.log('✅ Rough In Total:', fieldData.Rough_In_Total__c);
             }
 
             // Row 5: DROP CUT
             const dropCutRow = findRowByLabel('drop cut');
             if (dropCutRow) {
                 fieldData.Drop_Cut_Total__c = parseFloat(dropCutRow.value) || 0;
-                console.log('✅ Drop Cut Total:', fieldData.Drop_Cut_Total__c);
             }
 
             // Row 6: TRIM
             const trimRow = findRowByLabel('trim');
             if (trimRow) {
                 fieldData.Trim_Total__c = parseFloat(trimRow.value) || 0;
-                console.log('✅ Trim Total:', fieldData.Trim_Total__c);
             }
 
             // Row 7: PUMP MATERIAL
             const pumpMaterialRow = findRowByLabel('pump material');
             if (pumpMaterialRow) {
                 fieldData.Pump_Material_Total__c = parseFloat(pumpMaterialRow.value) || 0;
-                console.log('✅ Pump Material Total:', fieldData.Pump_Material_Total__c);
             }
 
             // Row 8: PUMP ROUGH IN
             const pumpRoughInRow = findRowByLabel('pump rough in');
             if (pumpRoughInRow) {
                 fieldData.Pump_Rough_In_Total__c = parseFloat(pumpRoughInRow.value) || 0;
-                console.log('✅ Pump Rough In Total:', fieldData.Pump_Rough_In_Total__c);
             }
 
             // Row 9: Permit (summary) or BACK FLOW DEVICE (building)
             // We'll use "permit" from summary rows, but also check for backflow
             const permitRow = findRowByLabel('permit');
             if (permitRow) {
-                console.log('permitRow :- ', permitRow);
                 fieldData.Backflow_Device_Total__c = parseFloat(permitRow.value) || 0; // per request: use Permit row
-                console.log('✅ Backflow Device Total (from Permit):', fieldData.Backflow_Device_Total__c);
             }
 
             // Row 10: Scissor (summary) used for Underground Work total
             const scissorRow = findRowByLabel('scissor');
             if (scissorRow) {
                 fieldData.Underground_Work_Total__c = parseFloat(scissorRow.value) || 0; // per request: use Scissor row
-                console.log('✅ Underground Work Total (from Scissor):', fieldData.Underground_Work_Total__c);
             }
 
             // Row 11: STANDPIPE AND FHV
             const standpipeRow = findRowByLabel('standpipe');
             if (standpipeRow) {
                 fieldData.Standpipe_and_VHF_Total__c = parseFloat(standpipeRow.value) || 0;
-                console.log('✅ Standpipe and VHF Total:', fieldData.Standpipe_and_VHF_Total__c);
             }
 
             // Building Total (from totalSOV)
             if (sovData.summary && sovData.summary.totalSOV) {
                 fieldData.Building_Total__c = parseFloat(sovData.summary.totalSOV) || 0;
-                console.log('✅ Building Total:', fieldData.Building_Total__c);
             }
 
-            console.log('📊 Extracted', Object.keys(fieldData).length, 'SOV fields');
             return fieldData;
 
 
@@ -1704,21 +1540,16 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             // Extract ALL 56 fields with corrected data types
             // ========================================
 
-            console.log('🔍 Starting Design field extraction with SAFE null handling');
 
             if (!estimateData) {
-                console.error('❌ Design data is null or undefined');
                 return fieldData;
             }
 
             if (!estimateData.formData) {
-                console.error('❌ Design formData is missing');
-                console.error('❌ estimateData keys:', Object.keys(estimateData || {}));
                 return fieldData;
             }
 
             const form = estimateData.formData;
-            console.log('📊 Extracting Design fields from form data');
 
             // ========================================
             // SAFE HELPER FUNCTIONS
@@ -1730,7 +1561,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                     const strValue = String(value).trim();
                     if (strValue !== '') {
                         fieldData[fieldName] = strValue.substring(0, maxLength);
-                        console.log(`✅ ${fieldName}:`, fieldData[fieldName]);
                         return true;
                     }
                 }
@@ -1743,7 +1573,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                     const numValue = parseFloat(value);
                     if (!isNaN(numValue)) {
                         fieldData[fieldName] = numValue;
-                        console.log(`✅ ${fieldName}:`, fieldData[fieldName]);
                         return true;
                     }
                 }
@@ -1754,7 +1583,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const addPicklistField = (fieldName, booleanValue) => {
                 if (booleanValue !== undefined && booleanValue !== null) {
                     fieldData[fieldName] = booleanValue ? 'Yes' : 'No';
-                    console.log(`✅ ${fieldName}:`, fieldData[fieldName]);
                     return true;
                 }
                 return false;
@@ -1764,7 +1592,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const addDateField = (fieldName, dateValue) => {
                 if (dateValue !== undefined && dateValue !== null && dateValue !== '') {
                     fieldData[fieldName] = dateValue;
-                    console.log(`✅ ${fieldName}:`, fieldData[fieldName]);
                     return true;
                 }
                 return false;
@@ -1866,7 +1693,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
             if (fdcType) {
                 fieldData.Type_FDC__c = fdcType;
-                console.log('✅ Type FDC (single value):', fieldData.Type_FDC__c);
             }
 
             // 39-43. Metraflex and Flexheads
@@ -1885,13 +1711,11 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             if (form.pave) undergroundScope.push('Pave');
             if (undergroundScope.length > 0) {
                 fieldData.Underground_Scope__c = undergroundScope.join(';').substring(0, 4099);
-                console.log('✅ Underground Scope:', fieldData.Underground_Scope__c);
             }
 
             // 45. Backflow (PICKLIST 255)
             if (form.backflowDDCV !== undefined && form.backflowDDCV !== null) {
                 fieldData.Backflow__c = form.backflowDDCV ? 'DDCV' : 'Reduced Pressure';
-                console.log('✅ Backflow:', fieldData.Backflow__c);
             }
 
             // 46-54. Equipment (Scissor Lifts, Boom Lifts, Forklift)
@@ -1913,7 +1737,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             addNumberField('FAB__c', form.fab);
             addNumberField('FM_200__c', form.fm200);
             addStringField('Comments__c', form.comments, 120);
-            console.log('📊 Extracted', Object.keys(fieldData).length, 'Design fields with safe null handling');
             return fieldData;
         }
         return fieldData;

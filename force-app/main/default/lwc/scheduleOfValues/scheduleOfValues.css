@@ -59,6 +59,10 @@
     width: 15%;
 }
 
+.job-summary-table .readonly-cell {
+    background-color: #f3f3f3;
+}
+
 .narrow-cell {
     width: 8%;
 }

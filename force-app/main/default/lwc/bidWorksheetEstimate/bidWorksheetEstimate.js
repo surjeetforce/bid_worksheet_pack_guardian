@@ -41,13 +41,10 @@ export default class BidWorksheetEstimate extends LightningElement {
         
         this._versionIdToLoad = value;
         
-        console.log(`📍 [Estimate] versionIdToLoad changed from ${oldValue} to ${value}, lastLoaded: ${this._lastLoadedVersionId}`);
-        
         // Check if rows are initialized
         const rowsReady = this.section1Rows.length > 0 || this.section2Rows.length > 0 || this.section3Rows.length > 0;
         
         if (!rowsReady) {
-            console.log('⏳ [Estimate] Rows not ready yet, will load when metadata is ready');
             return;
         }
         
@@ -65,23 +62,12 @@ export default class BidWorksheetEstimate extends LightningElement {
         
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
-            console.log(`📍 [Estimate] Version changed, triggering loadSavedData()`, {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
             // Don't reload if user is actively editing
             if (!this._isUserEditing) {
                 this.loadSavedData();
             } else {
-                console.log('📍 [Estimate] User is editing, skipping load to prevent data loss');
             }
         } else {
-            console.log('⏸️ [Estimate] Version not changed or already loaded, skipping reload', {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
         }
     }
 
@@ -100,8 +86,7 @@ export default class BidWorksheetEstimate extends LightningElement {
     static WHOLE_NUMBER_FIELDS = {
         182: { left: { gross: true } }, // TOTAL LABOR HRS. - gross field is whole number
         184: { left: { quantity: true } }, // LABOR (FM+ 7TH PERIOD) - quantity field is whole number
-        // Add more rows here as needed:
-        // 185: { right: { unitPrice: true } }, // Example: Another row
+        186: { left: { quantity: true } }, // BIM - quantity field is whole number
     };
 
     // ========================================
@@ -112,10 +97,10 @@ export default class BidWorksheetEstimate extends LightningElement {
     // Example: { 187: { left: { size: true } } } means row 187, left side, size field is editable
     // To add more editable fields, just add entries here:
     static EDITABLE_FIELD_OVERRIDES = {
+        153: { left: { description: true } }, // MISC. - description field is editable
+        180: { left: { description: true } }, // MISC. - description field is editable
         186: { left: { quantity: true } }, // BIM - quantity field is editable (overrides calculated readonly)
         187: { left: { size: true } }, // FABRICATION QUARTER HOUR PER - size field is editable
-        // Add more rows here as needed:
-        // 188: { right: { quantity: true, size: true } }, // Example: Another row with multiple editable fields
     };
 
     get currentDate() {
@@ -132,19 +117,16 @@ export default class BidWorksheetEstimate extends LightningElement {
 
     async loadSavedData() {
         if (!this.recordId) {
-            console.log('❌ [LOAD Estimate] No recordId, skipping load');
             return;
         }
 
         // Don't load if rows haven't been initialized from metadata yet
         if (this.section1Rows.length === 0 && this.section2Rows.length === 0 && this.section3Rows.length === 0) {
-            console.log('⚠️ [LOAD Estimate] Rows not initialized yet, will load after metadata');
             return;
         }
 
         // Don't load if user is actively editing
         if (this._isUserEditing) {
-            console.log('📍 [LOAD Estimate] User is editing, skipping load to prevent data loss');
             return;
         }
 
@@ -156,18 +138,15 @@ export default class BidWorksheetEstimate extends LightningElement {
             
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
-                console.log('🔍 [LOAD Estimate] Loading specific version:', this.versionIdToLoad);
                 base64Data = await loadVersionById_Estimate({ versionId: this.versionIdToLoad });
                 this._lastLoadedVersionId = this.versionIdToLoad;
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD Estimate] Loading latest (draft)');
                 base64Data = await loadLatestEstimateSheet({ opportunityId: this.recordId });
                 this._lastLoadedVersionId = 'draft';
             }
 
             if (!base64Data) {
-                console.log('⚠️ [LOAD Estimate] No saved data found - using defaults');
                 this._isLoadingData = false;
                 return;
             }
@@ -176,12 +155,10 @@ export default class BidWorksheetEstimate extends LightningElement {
             const jsonString = this.decodeData(base64Data);
             const data = JSON.parse(jsonString);
 
-            console.log('✅ [LOAD Estimate] Loaded estimate data');
             this.applySavedData(data);
         } catch (error) {
             const errorMessage = error?.body?.message || error?.message || String(error);
             if (errorMessage.includes('not found') || errorMessage.includes('No ContentVersion') || errorMessage.includes('List has no rows')) {
-                console.log('⚠️ [LOAD Estimate] No saved file found yet (first time use)');
             } else {
                 console.error('❌ [LOAD Estimate] Error loading estimate data:', error);
             }
@@ -220,8 +197,6 @@ export default class BidWorksheetEstimate extends LightningElement {
 
         this.calculateTotals();
 
-        console.log('Saved data restored successfully');
-        
         // Clear loading flag after a delay
         setTimeout(() => {
             this._isLoadingData = false;
@@ -243,7 +218,12 @@ export default class BidWorksheetEstimate extends LightningElement {
                     if (item.size !== undefined && item.size !== null) {
                         row[side].size = item.size || '';
                     }
-                    row[side].quantity = item.quantity || '';
+                    row[side].quantityRaw = item.quantity || '';
+                    if (row[side].isWholeNumberQuantity && item.quantity) {
+                        row[side].quantity = Math.round(item.quantity).toString();
+                    } else {
+                        row[side].quantity = item.quantity || '';
+                    }
                     row[side].unitPrice = item.unitPrice || '';
                     row[side].gross = item.gross || '';
 
@@ -279,7 +259,6 @@ export default class BidWorksheetEstimate extends LightningElement {
     @wire(getEstimateSheetItems)
     wiredItems({ error, data }) {
         if (data) {
-            console.log('Estimate metadata loaded:', data.length, 'items');
             // Set loading flag first to prevent autosave during initialization
             this._isLoadingData = true;
             
@@ -288,10 +267,6 @@ export default class BidWorksheetEstimate extends LightningElement {
             
             // Load saved data after metadata is loaded and rows are initialized
             setTimeout(() => {
-                console.log('📍 Estimate: Attempting to load saved data...');
-                console.log('📍 Estimate: Current versionIdToLoad:', this._versionIdToLoad);
-                console.log('📍 Estimate: Rows ready:', this.section1Rows.length > 0 || this.section2Rows.length > 0 || this.section3Rows.length > 0);
-                
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
                 const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
@@ -320,8 +295,6 @@ export default class BidWorksheetEstimate extends LightningElement {
         const section2Items = [];
         const section3Items = [];
 
-        console.log('metadataItems :- ', metadataItems);
-
         metadataItems.forEach((item, index) => {
             const section = item.section || this.inferSection(item);
 
@@ -338,10 +311,6 @@ export default class BidWorksheetEstimate extends LightningElement {
         this.section2Rows = section2Items;
         this.section3Rows = section3Items;
 
-        console.log('section3Items :- ', section3Items);
-
-        console.log(`Initialized sections: S1=${section1Items.length}, S2=${section2Items.length}, S3=${section3Items.length}`);
-
         // Run calculations to set readonly states for calculated rows (like row 178)
         this.calculateTotals();
     }
@@ -351,17 +320,13 @@ export default class BidWorksheetEstimate extends LightningElement {
     }
 
     createRowFromMetadata(data, id) {
+        // Check if descriptions are empty
         const leftDescEmpty = !data.left.description || data.left.description.trim() === '';
         const rightDescEmpty = !data.right.description || data.right.description.trim() === '';
 
         // Check if this is a total/calculated row
         const leftIsTotalOrCalculated = data.left.isTotalRow;
         const rightIsTotalOrCalculated = data.right.isTotalRow;
-
-        console.log('Row', data.excelRow, 'Right desc:', data.right.description,
-            'isEmpty:', rightDescEmpty,
-            'isTotalRow:', rightIsTotalOrCalculated,
-            'unitPriceReadonly will be:', (rightIsTotalOrCalculated || rightDescEmpty));        // Check if descriptions are empty
 
         // Check whole number configuration for this row
         const rowWholeNumberConfig = BidWorksheetEstimate.WHOLE_NUMBER_FIELDS[data.excelRow] || {};
@@ -377,10 +342,12 @@ export default class BidWorksheetEstimate extends LightningElement {
         const leftQuantityReadonly = leftEditableOverrides.quantity ? false : (leftIsTotalOrCalculated || leftDescEmpty);
         const leftUnitPriceReadonly = leftEditableOverrides.unitPrice ? false : (leftIsTotalOrCalculated || leftDescEmpty);
         const leftSizeReadonly = leftEditableOverrides.size ? false : true; // Default: size is readonly
+        const leftDescriptionReadonly = leftEditableOverrides.description ? false : (!!data.left.description || data.left.isReadonly);
 
         const rightQuantityReadonly = rightEditableOverrides.quantity ? false : (rightIsTotalOrCalculated || rightDescEmpty);
         const rightUnitPriceReadonly = rightEditableOverrides.unitPrice ? false : (rightIsTotalOrCalculated || rightDescEmpty);
         const rightSizeReadonly = rightEditableOverrides.size ? false : true; // Default: size is readonly
+        const rightDescriptionReadonly = rightEditableOverrides.description ? false : (!!data.right.description || data.right.isReadonly);
 
         return {
             id: id,
@@ -388,10 +355,11 @@ export default class BidWorksheetEstimate extends LightningElement {
             rowClass: data.left.isTotalRow || data.right.isTotalRow ? 'total-row' : '',
             left: {
                 description: data.left.description || '',
-                descriptionReadonly: !!data.left.description || data.left.isReadonly,
+                descriptionReadonly: leftDescriptionReadonly,
                 size: data.left.size || '',
                 sizeReadonly: leftSizeReadonly, // ⭐ Configurable: can be overridden by EDITABLE_FIELD_OVERRIDES
                 quantity: '',
+                quantityRaw: '', // ⭐ Precise decimal value for calculations
                 unitPrice: data.left.defaultUnitPrice || '',
                 unitPriceReadonly: leftUnitPriceReadonly,
                 defaultUnitPrice: data.left.defaultUnitPrice,
@@ -403,7 +371,7 @@ export default class BidWorksheetEstimate extends LightningElement {
                 quantityUserEntered: false, // ⭐ Track if user manually entered quantity
                 sizeUserEntered: false, // ⭐ Track if user manually entered size
                 isTotalRow: data.left.isTotalRow,
-                descriptionClass: (!!data.left.description || data.left.isReadonly) ? 'description-cell readonly-cell' : 'description-cell',
+                descriptionClass: leftDescriptionReadonly ? 'description-cell readonly-cell' : 'description-cell',
                 sizeClass: leftSizeReadonly ? 'readonly-cell' : '',
                 quantityClass: leftQuantityReadonly ? 'readonly-cell' : '',
                 unitPriceClass: leftUnitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit',
@@ -419,10 +387,11 @@ export default class BidWorksheetEstimate extends LightningElement {
             },
             right: {
                 description: data.right.description || '',
-                descriptionReadonly: !!data.right.description || data.right.isReadonly,
+                descriptionReadonly: rightDescriptionReadonly,
                 size: data.right.size || '',
                 sizeReadonly: rightSizeReadonly, // ⭐ Configurable: can be overridden by EDITABLE_FIELD_OVERRIDES
                 quantity: '',
+                quantityRaw: '', // ⭐ Precise decimal value for calculations
                 unitPrice: data.right.defaultUnitPrice || '',
                 unitPriceReadonly: rightUnitPriceReadonly,
                 defaultUnitPrice: data.right.defaultUnitPrice,
@@ -435,7 +404,7 @@ export default class BidWorksheetEstimate extends LightningElement {
                 sizeUserEntered: false, // ⭐ Track if user manually entered size
                 isTotalRow: data.right.isTotalRow,
                 isCommentRow: data.right.isCommentRow,
-                descriptionClass: (!!data.right.description || data.right.isReadonly) ? 'description-cell readonly-cell' : 'description-cell',
+                descriptionClass: rightDescriptionReadonly ? 'description-cell readonly-cell' : 'description-cell',
                 sizeClass: rightSizeReadonly ? 'readonly-cell' : '',
                 quantityClass: rightQuantityReadonly ? 'readonly-cell' : '',
                 unitPriceClass: rightUnitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit',
@@ -480,11 +449,17 @@ export default class BidWorksheetEstimate extends LightningElement {
             const updatedRow = { ...rows[rowIndex] };
             updatedRow[col] = { ...updatedRow[col], [field]: value };
 
+            // Handle quantityRaw for quantity field
+            if (field === 'quantity') {
+                updatedRow[col].quantityRaw = value;
+            }
+
             // Handle description changes - toggle readonly for other fields
             if (field === 'description') {
                 const isEmpty = !value || value.trim() === '';
 
                 // Only toggle readonly if it's NOT a total/calculated row
+                // OR if description is NOT readonly (meaning it's one of our editable overrides like MISC.)
                 if (!updatedRow[col].isTotalRow && !updatedRow[col].descriptionReadonly) {
                     updatedRow[col].quantityReadonly = isEmpty;
                     updatedRow[col].unitPriceReadonly = isEmpty;
@@ -499,6 +474,7 @@ export default class BidWorksheetEstimate extends LightningElement {
                     // Clear values if description is cleared
                     if (isEmpty) {
                         updatedRow[col].quantity = '';
+                        updatedRow[col].quantityRaw = '';
                         updatedRow[col].unitPrice = updatedRow[col].defaultUnitPrice || '';
                         updatedRow[col].gross = '';
                     }
@@ -513,7 +489,7 @@ export default class BidWorksheetEstimate extends LightningElement {
 
             if (field === 'quantity' || field === 'unitPrice') {
                 updatedRow[col].gross = this.calculateGross(
-                    updatedRow[col].quantity,
+                    updatedRow[col].quantityRaw || updatedRow[col].quantity,
                     updatedRow[col].unitPrice
                 );
             }
@@ -593,14 +569,11 @@ export default class BidWorksheetEstimate extends LightningElement {
         this.applySection3Calculations();
 
         this.section3Subtotal = this.calculateSectionTotal(this.section3Rows);
-        console.log('section3Subtotal :- ', this.section3Subtotal);
 
         const s1 = parseFloat(this.section1Subtotal) || 0;
         const s2 = parseFloat(this.section2Subtotal) || 0;
         const s3 = parseFloat(this.section3Subtotal) || 0;
         this.grandTotal = (s1 + s2 + s3).toFixed(2);
-
-        console.log(`Totals: S1=$${this.section1Subtotal}, S2=$${this.section2Subtotal}, S3=$${this.section3Subtotal}, Grand=$${this.grandTotal}`);
 
         this.notifyParent();
     }
@@ -786,7 +759,6 @@ export default class BidWorksheetEstimate extends LightningElement {
             let sum = 0;
             for (let i = 133; i <= 150; i++) {
                 const r = findRow(i);
-                console.log('Adding row', i, 'gross:', r ? getGross(r, 'right') : 0);
                 if (r) sum += getGross(r, 'right');
             }
             row152.right.gross = sum.toFixed(2);
@@ -1073,16 +1045,17 @@ export default class BidWorksheetEstimate extends LightningElement {
         // ROW 184: LABOR (FM+ 7TH PERIOD)
         const row184 = findRow(184);
         if (row184 && row182) {
-            console.log('new test row184 :- ', JSON.stringify(row184));
-            console.log('new test row182 :- ', JSON.stringify(row182));
 
             const laborHrs = parseFloat(row182.left.gross) || 0;
+            // Store precise value in quantityRaw
+            row184.left.quantityRaw = laborHrs > 0 ? laborHrs.toFixed(2) : '';
+
             // Store with 2 decimals for backend, but display as whole number if configured
             if (row184.left.isWholeNumberQuantity) {
-                // Display as whole number (rounded), but keep decimal precision in value
+                // Display as whole number (rounded) in the quantity field
                 row184.left.quantity = laborHrs > 0 ? Math.round(laborHrs).toString() : '';
             } else {
-                row184.left.quantity = laborHrs > 0 ? laborHrs.toFixed(2) : '';
+                row184.left.quantity = row184.left.quantityRaw;
             }
             row184.left.quantityReadonly = true;
 
@@ -1103,8 +1076,6 @@ export default class BidWorksheetEstimate extends LightningElement {
                 row184.left.size = '';
             }
 
-            console.log('new test row184 :- ', row184);
-            console.log('new test row182 :- ', row182);
         }
 
         // ROW 185: ENGINEERING HALF HOUR HEAD
@@ -1154,19 +1125,21 @@ export default class BidWorksheetEstimate extends LightningElement {
                 
                 if (!isQuantityEditable) {
                     // Always calculate if readonly
-                    row186.left.quantity = bimQty > 0 ? bimQty.toFixed(2) : '';
+                    row186.left.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
+                    row186.left.quantity = (bimQty > 0 && row186.left.isWholeNumberQuantity) ? Math.round(bimQty).toString() : row186.left.quantityRaw;
                     row186.left.quantityUserEntered = false;
                 } else if (!isEditingThisField) {
                     // Recalculate if user is NOT currently editing this field
                     // This allows manual edits to stay, but recalculates when source (row 157) changes
-                    row186.left.quantity = bimQty > 0 ? bimQty.toFixed(2) : '';
+                    row186.left.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
+                    row186.left.quantity = (bimQty > 0 && row186.left.isWholeNumberQuantity) ? Math.round(bimQty).toString() : row186.left.quantityRaw;
                 }
                 // If user is editing this field, preserve their input (don't recalculate)
                 
                 row186.left.quantityReadonly = !isQuantityEditable; // If in config, make editable
                 
                 // ⭐ Use calculated quantity value
-                const currentQty = parseFloat(row186.left.quantity) || bimQty;
+                const currentQty = parseFloat(row186.left.quantityRaw) || bimQty;
 
                 // ⭐ Unit price is editable (BIM rate can be changed)
                 const unitPrice = getUnit(row186, 'left');
@@ -1319,7 +1292,7 @@ export default class BidWorksheetEstimate extends LightningElement {
                     column: 'Left',
                     description: row.left.description || '',
                     size: row.left.size || '',
-                    quantity: parseFloat(row.left.quantity) || 0,
+                    quantity: parseFloat(row.left.quantityRaw || row.left.quantity) || 0,
                     unitPrice: parseFloat(row.left.unitPrice) || 0,
                     gross: parseFloat(row.left.gross) || 0
                 });
@@ -1333,7 +1306,7 @@ export default class BidWorksheetEstimate extends LightningElement {
                     column: 'Right',
                     description: row.right.description || '',
                     size: row.right.size || '',
-                    quantity: parseFloat(row.right.quantity) || 0,
+                    quantity: parseFloat(row.right.quantityRaw || row.right.quantity) || 0,
                     unitPrice: parseFloat(row.right.unitPrice) || 0,
                     gross: parseFloat(row.right.gross) || 0
                 });

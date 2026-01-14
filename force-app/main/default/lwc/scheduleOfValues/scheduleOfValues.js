@@ -4,6 +4,8 @@ import getSOVItems from '@salesforce/apex/BidWorksheetUndergroundController.getS
 import loadSOVSheet from '@salesforce/apex/BidWorksheetUndergroundController.loadSOVSheet';
 import loadLatestSOVSheet from '@salesforce/apex/BidWorksheetUndergroundController.loadLatestSOVSheet';
 import loadVersionById_SOV from '@salesforce/apex/BidWorksheetUndergroundController.loadVersionById_SOV';
+import loadDesignWorksheet from '@salesforce/apex/BidWorksheetUndergroundController.loadDesignWorksheet';
+import loadLatestDesignWorksheet from '@salesforce/apex/BidWorksheetUndergroundController.loadLatestDesignWorksheet';
 
 const FLOOR_COLUMNS = [
     { key: 'total', label: 'TOTAL', isTotal: true },
@@ -59,13 +61,10 @@ export default class ScheduleOfValues extends LightningElement {
         
         this._versionIdToLoad = value;
         
-        console.log(`📍 [SOV] versionIdToLoad changed from ${oldValue} to ${value}, lastLoaded: ${this._lastLoadedVersionId}`);
-        
         // Check if rows are initialized
         const rowsReady = this.summaryRows.length > 0 || this.buildings.length > 0;
         
         if (!rowsReady) {
-            console.log('⏳ [SOV] Rows not ready yet, will load when metadata is ready');
             return;
         }
         
@@ -83,24 +82,13 @@ export default class ScheduleOfValues extends LightningElement {
         
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
-            console.log(`📍 [SOV] Version changed, triggering loadSavedData()`, {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
             // Don't reload if user is actively editing (but allow during initial load)
             // During initial load (_isLoadingData is true), we should load even if _isUserEditing is true
             if (!this._isUserEditing || this._isLoadingData) {
                 this.loadSavedData();
             } else {
-                console.log('📍 [SOV] User is editing, skipping load to prevent data loss');
             }
         } else {
-            console.log('⏸️ [SOV] Version not changed or already loaded, skipping reload', {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
         }
     }
 
@@ -130,10 +118,6 @@ export default class ScheduleOfValues extends LightningElement {
     @wire(getSOVItems)
     wiredSOVItems({ error, data }) {
         if (data) {
-            console.log('SOV metadata loaded');
-            console.log('Summary rows:', data.summaryRows?.length || 0);
-            console.log('Building rows:', data.buildingRows?.length || 0);
-
             // Set loading flag first to prevent autosave during initialization
             this._isLoadingData = true;
 
@@ -148,10 +132,6 @@ export default class ScheduleOfValues extends LightningElement {
 
             // Now try to load saved data
             setTimeout(() => {
-                console.log('📍 SOV: Attempting to load saved data...');
-                console.log('📍 SOV: Current versionIdToLoad:', this._versionIdToLoad);
-                console.log('📍 SOV: Rows ready:', this.summaryRows.length > 0 || this.buildings.length > 0);
-                
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
                 const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
@@ -168,7 +148,6 @@ export default class ScheduleOfValues extends LightningElement {
                     this._isInitializing = false;
                 }, 1500);
             }, 100);
-
         } else if (error) {
             console.error('Error loading SOV metadata:', error);
             this.showToast('Error', 'Failed to load SOV metadata', 'error');
@@ -179,19 +158,16 @@ export default class ScheduleOfValues extends LightningElement {
 
     async loadSavedData() {
         if (!this.recordId) {
-            console.log('❌ [LOAD SOV] No recordId, skipping load');
             return;
         }
 
         // Don't load if rows haven't been initialized from metadata yet
         if (this.summaryRows.length === 0 && this.buildings.length === 0) {
-            console.log('⚠️ [LOAD SOV] Rows not initialized yet, will load after metadata');
             return;
         }
 
         // Don't load if user is actively editing
         if (this._isUserEditing) {
-            console.log('📍 [LOAD SOV] User is editing, skipping load to prevent data loss');
             return;
         }
 
@@ -203,7 +179,6 @@ export default class ScheduleOfValues extends LightningElement {
             
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
-                console.log('🔍 [LOAD SOV] Loading specific version:', this.versionIdToLoad);
                 const base64Data = await loadVersionById_SOV({ versionId: this.versionIdToLoad });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
@@ -211,7 +186,6 @@ export default class ScheduleOfValues extends LightningElement {
                 this._lastLoadedVersionId = this.versionIdToLoad;
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD SOV] Loading latest (draft)');
                 const base64Data = await loadLatestSOVSheet({ opportunityId: this.recordId });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
@@ -223,30 +197,24 @@ export default class ScheduleOfValues extends LightningElement {
             }
 
             if (savedData) {
-                console.log('✅ [LOAD SOV] Loaded SOV data');
                 const data = typeof savedData === 'string' ? JSON.parse(savedData) : savedData;
-                console.log('test data :- ', data);
                 // Apply saved data
                 if (data.jobOverview) {
-                    this.jobOverview = data.jobOverview;
+                    this.jobOverview.numberOfBuildings = data.jobOverview.numberOfBuildings;
                 }
 
                 if (data.summaryRows && Array.isArray(data.summaryRows) && data.summaryRows.length > 0) {
-                    console.log('✅ [LOAD SOV] Restoring summaryRows:', data.summaryRows.length, 'rows');
                     // Ensure summaryRows have the correct structure with displayValue
                     this.summaryRows = data.summaryRows.map(row => ({
                         ...row,
                         displayValue: row.displayValue || this.formatCurrency(row.value || 0)
                     }));
                 } else {
-                    console.log('⚠️ [LOAD SOV] No summaryRows in saved data, keeping metadata rows');
                 }
 
                 if (data.buildings && Array.isArray(data.buildings) && data.buildings.length > 0) {
-                    console.log('✅ [LOAD SOV] Restoring buildings:', data.buildings.length, 'buildings');
                     this.buildings = data.buildings;
                 } else {
-                    console.log('⚠️ [LOAD SOV] No buildings in saved data, keeping metadata buildings');
                 }
 
                 // Only refresh calculations if we have buildings data
@@ -258,10 +226,8 @@ export default class ScheduleOfValues extends LightningElement {
                     this.recalculateSummaryTotals();
                     this.notifyParent();
                 }
-                console.log('✅ Saved SOV data restored');
             }
         } catch (error) {
-            console.log('No saved SOV data found or error loading:', error);
         } finally {
             this.isLoading = false;
             // Clear loading flag after a delay to allow DOM to settle
@@ -270,6 +236,59 @@ export default class ScheduleOfValues extends LightningElement {
             }, 500);
         }
     }
+
+    // Populate SOV Job Name from Design Worksheet file when SOV does not have a value.
+    @api
+    async populateJobNameFromDesign(manualJobName) {
+        if (manualJobName) {
+            this.jobOverview = {
+                ...this.jobOverview,
+                jobName: manualJobName
+            };
+            return;
+        }
+
+        if (!this.recordId) {
+            return;
+        }
+        try {
+            this.isLoading = true;
+            let savedData;
+
+            const base64Data = await loadLatestDesignWorksheet({ opportunityId: this.recordId });
+            if (base64Data) {
+                savedData = this.decodeData(base64Data);
+            } else {
+                savedData = await loadDesignWorksheet({ opportunityId: this.recordId });
+            }
+
+            if (!savedData) {
+                return;
+            }
+
+            const data = typeof savedData === 'string' ? JSON.parse(savedData) : savedData;
+            const designJobName =
+                data &&
+                data.formData &&
+                typeof data.formData.jobName === 'string' &&
+                data.formData.jobName.trim() !== ''
+                    ? data.formData.jobName
+                    : null;
+            
+            if (!designJobName) {
+                return;
+            }
+            this.jobOverview = {
+                ...this.jobOverview,
+                jobName: designJobName
+            };
+        } catch (error) {
+            console.error('Error populating job name from Design Worksheet', error);
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
 
     decodeData(base64Data) {
         try {
@@ -486,7 +505,6 @@ export default class ScheduleOfValues extends LightningElement {
         // Update summary rows - ONLY auto-calculate the 4 specific rows
         // Make sure we have summaryRows to work with
         if (!this.summaryRows || this.summaryRows.length === 0) {
-            console.log('⚠️ [SOV] No summaryRows to recalculate, skipping');
             return;
         }
 

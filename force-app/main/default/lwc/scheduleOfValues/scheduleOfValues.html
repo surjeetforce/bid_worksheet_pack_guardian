@@ -26,14 +26,8 @@
                         <tbody>
                             <tr>
                                 <th>JOB NAME :</th>
-                                <td colspan="4">
-                                    <input
-                                            class="field-input"
-                                            type="text"
-                                            value={jobOverview.jobName}
-                                            data-field="jobName"
-                                            oninput={handleJobInfoChange}
-                                        />
+                                <td colspan="4" class="readonly-cell">
+                                    {jobOverview.jobName}
                                 </td>
                                 <th># OF BUILDINGS :</th>
                                 <td class="narrow-cell">

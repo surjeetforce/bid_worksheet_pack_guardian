@@ -27,8 +27,6 @@ export default class BidWorksheetUnderground extends LightningElement {
         
         this._versionIdToLoad = value;
         
-        console.log('🔔 Sheet #1 versionIdToLoad changed:', { oldValue, newValue: value, lastLoaded: this._lastLoadedVersionId });
-        
         // Always reload if:
         // 1. lastLoaded is null (first time load) - ALWAYS reload on first load
         // 2. OR value actually changed (normalized comparison)
@@ -44,27 +42,15 @@ export default class BidWorksheetUnderground extends LightningElement {
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
             
-            console.log('🔔 Sheet #1: Version changed, checking if tableRows are ready...', {
-                hasTableRows: !!this.tableRows,
-                tableRowsLength: this.tableRows?.length || 0
-            });
-            
             // Only load if tableRows are initialized (metadata loaded)
             if (this.tableRows && this.tableRows.length > 0) {
-                console.log('✅ Sheet #1: tableRows ready, triggering loadSavedSheet()');
                 // Small delay to ensure DOM is stable
                 setTimeout(() => {
                     this.loadSavedSheet();
                 }, 100);
             } else {
-                console.log('⏳ Sheet #1: tableRows not ready yet, will load when metadata is ready');
             }
         } else {
-            console.log('⏸️ Sheet #1: Version not changed or already loaded, skipping reload', {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
         }
     }
 
@@ -100,10 +86,6 @@ export default class BidWorksheetUnderground extends LightningElement {
     @wire(getSheet1Items)
     wiredItems({ error, data }) {
         if (data) {
-            console.log('📍 Sheet #1 metadata loaded successfully');
-            console.log('📍 Number of rows:', data.length);
-            console.log('Sample data:', JSON.stringify(data[0], null, 2));
-
             // ⭐ Set flag FIRST to prevent autosave during initialization
             this._isLoadingData = true;
 
@@ -112,10 +94,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             // Reload saved data (if any) now that base rows are ready
             // Use setTimeout to ensure DOM is updated and tableRows are fully initialized
             setTimeout(() => {
-                console.log('📍 Sheet #1: Attempting to load saved data...');
-                console.log('📍 Sheet #1: Current versionIdToLoad:', this._versionIdToLoad);
-                console.log('📍 Sheet #1: tableRows ready:', this.tableRows && this.tableRows.length > 0);
-                
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
                 const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
@@ -131,7 +109,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             // The flag will be cleared by loadSavedSheet's applyLoadedData, but we set a timeout as backup
             setTimeout(() => {
                 if (this._isLoadingData) {
-                    console.log('📍 Sheet #1: Clearing _isLoadingData flag after initialization');
                     this._isLoadingData = false;
                 }
             }, 1500); // Give enough time for loadSavedSheet to complete
@@ -152,26 +129,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             this.createRowFromMetadata(item, index)
         );
         this.nextRowId = this.tableRows.length;
-
-        // ⭐ ADDED: Debug logging to verify row mapping
-        console.log('=== Underground Sheet 1 (Section 1) Row Mapping ===');
-        console.log('Total rows loaded:', this.tableRows.length);
-        console.log('Row range:',
-            this.tableRows[0]?.excelRow,
-            'to',
-            this.tableRows[this.tableRows.length - 1]?.excelRow
-        );
-
-        // Show a few sample rows
-        const samples = [0, Math.floor(this.tableRows.length / 2), this.tableRows.length - 1];
-        samples.forEach(idx => {
-            if (this.tableRows[idx]) {
-                console.log(`Sample row ${idx}:`, {
-                    excelRow: this.tableRows[idx].excelRow,
-                    leftDesc: this.tableRows[idx].left.description?.substring(0, 30)
-                });
-            }
-        });
     }
 
     /**
@@ -249,8 +206,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             }
         }
 
-        console.log(`Cell changed: Row ${rowId}, Col ${col}, Field ${field}, Value: ${value}`);
-
         const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
         if (rowIndex !== -1) {
             const updatedRow = { ...this.tableRows[rowIndex] };
@@ -270,7 +225,6 @@ export default class BidWorksheetUnderground extends LightningElement {
                     updatedRow[col].amount,
                     updatedRow[col].unitPrice
                 );
-                console.log(`Calculated gross: ${updatedRow[col].gross}`);
             }
 
             // Update the array
@@ -314,7 +268,6 @@ export default class BidWorksheetUnderground extends LightningElement {
         });
 
         this.subTotal = total.toFixed(2);
-        console.log(`Sheet #1 Subtotal: $${this.subTotal}`);
 
         this.notifyParent();
     }
@@ -367,8 +320,6 @@ export default class BidWorksheetUnderground extends LightningElement {
         return new Promise((resolve, reject) => {
             try {
                 const sheetData = this.collectFormData();
-                console.log('💾 Sheet #1 Data collected:', Object.keys(sheetData));
-                console.log('💾 Sheet #1 LineItems count:', sheetData.lineItems?.length);
 
                 resolve(sheetData);
             } catch (error) {
@@ -417,13 +368,11 @@ export default class BidWorksheetUnderground extends LightningElement {
 
     async loadSavedSheet() {
         if (!this.recordId) {
-            console.log('❌ [LOAD Sheet #1] No recordId, skipping load');
             return;
         }
 
         // Don't load if tableRows haven't been initialized from metadata yet
         if (!this.tableRows || this.tableRows.length === 0) {
-            console.log('⚠️ [LOAD Sheet #1] TableRows not initialized yet, will load after metadata');
             return;
         }
 
@@ -433,34 +382,22 @@ export default class BidWorksheetUnderground extends LightningElement {
             
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
-                console.log('🔍 [LOAD Sheet #1] Loading specific version:', this.versionIdToLoad);
                 base64Data = await loadVersionById({ versionId: this.versionIdToLoad });
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD Sheet #1] Starting load for Opportunity:', this.recordId);
                 base64Data = await loadLatestSheet({ opportunityId: this.recordId });
             }
 
-            console.log('🔍 [LOAD Sheet #1] Received base64Data:', base64Data ? 'YES (length: ' + base64Data.length + ')' : 'NO');
 
             if (!base64Data) {
-                console.log('⚠️ [LOAD Sheet #1] No saved data found - using default metadata values');
                 return;
             }
 
             const jsonString = this.decodeData(base64Data);
-            console.log('🔍 [LOAD Sheet #1] Decoded JSON length:', jsonString.length);
 
             const savedState = JSON.parse(jsonString);
 
-            if (savedState.sheet1) {
-                console.log('🔍 [LOAD Sheet #1] Sheet1 keys:', Object.keys(savedState.sheet1));
-                console.log('🔍 [LOAD Sheet #1] Sheet1 has lineItems?', !!savedState.sheet1.lineItems);
-                console.log('🔍 [LOAD Sheet #1] Sheet1 lineItems count:', savedState.sheet1.lineItems?.length);
-            }
-
             this.applyLoadedData(savedState);
-            console.log('✅ [LOAD Sheet #1] Loaded saved Sheet #1 state from file');
 
         } catch (error) {
             // Don't show error toast if file doesn't exist (first time use)
@@ -472,7 +409,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             });
 
             if (errorMessage.includes('not found') || errorMessage.includes('No ContentVersion') || errorMessage.includes('List has no rows')) {
-                console.log('⚠️ [LOAD Sheet #1] No saved file found yet (first time use) - using default metadata values');
                 return;
             }
             this.logError('Load saved sheet failed', error);
@@ -486,13 +422,11 @@ export default class BidWorksheetUnderground extends LightningElement {
     // ⭐ FIXED: Use same merging approach as Sheet 2
     applyLoadedData(data) {
         if (!data) {
-            console.log('❌ [APPLY Sheet #1] No data provided to applyLoadedData');
             return;
         }
 
         // Don't apply if tableRows haven't been initialized from metadata yet
         if (!this.tableRows || this.tableRows.length === 0) {
-            console.log('❌ [APPLY Sheet #1] TableRows not initialized yet, skipping data application');
             return;
         }
 
@@ -502,11 +436,6 @@ export default class BidWorksheetUnderground extends LightningElement {
         try {
             // Handle unified payload structure (from parent save) or direct sheet data
             const sheetData = data.sheet1 || data;
-            console.log('🔧 [APPLY Sheet #1] Applying Sheet #1 data');
-            console.log('🔧 [APPLY Sheet #1] Data has sheet1?', !!data.sheet1);
-            console.log('🔧 [APPLY Sheet #1] Extracted sheetData keys:', Object.keys(sheetData));
-            console.log('🔧 [APPLY Sheet #1] Has lineItems?', !!sheetData.lineItems);
-            console.log('🔧 [APPLY Sheet #1] LineItems count:', sheetData.lineItems?.length);
 
             // Helper function to safely update values
             const updateIfExists = (savedValue, currentValue) => {
@@ -520,9 +449,6 @@ export default class BidWorksheetUnderground extends LightningElement {
 
             // Only inflate rows if we have lineItems
             if (sheetData.lineItems && Array.isArray(sheetData.lineItems) && sheetData.lineItems.length > 0) {
-                console.log('🔧 [APPLY Sheet #1] Merging saved lineItems with metadata rows');
-                console.log('🔧 [APPLY Sheet #1] Current tableRows count:', this.tableRows.length);
-                console.log('🔧 [APPLY Sheet #1] Saved lineItems count:', sheetData.lineItems.length);
 
                 // ⭐ NEW: Simple merging approach (same as Sheet 2)
                 const mergedRows = this.tableRows.map((existingRow, index) => {
@@ -566,21 +492,15 @@ export default class BidWorksheetUnderground extends LightningElement {
                 this.tableRows = mergedRows;
                 this.nextRowId = this.tableRows.length;
 
-                console.log('🔧 [APPLY Sheet #1] Merged rows successfully');
-                console.log('🔧 [APPLY Sheet #1] Sample merged row 0:', JSON.stringify(this.tableRows[0], null, 2));
-
                 // Force reactivity update
                 this.tableRows = [...this.tableRows];
             } else {
-                console.log('⚠️ [APPLY Sheet #1] No lineItems found in saved data, keeping metadata rows');
             }
 
             // Recalculate to ensure totals match restored rows
             // Use setTimeout to ensure DOM has updated
             setTimeout(() => {
-                console.log('🔧 [APPLY Sheet #1] Triggering recalculation...');
                 this.calculateSubTotal();
-                console.log('✅ [APPLY Sheet #1] Applied loaded Sheet #1 data successfully');
                 
                 // Clear flag after a delay to allow DOM to settle and prevent autosave
                 setTimeout(() => {

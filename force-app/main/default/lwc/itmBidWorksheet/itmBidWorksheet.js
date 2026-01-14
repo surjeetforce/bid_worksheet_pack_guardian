@@ -54,7 +54,6 @@ export default class ItmBidWorksheet extends LightningElement {
     @wire(getITMItems)
     wiredItems({ error, data }) {
         if (data) {
-            console.log('✅ Metadata loaded', data);
             this.initializeRows(data);
             // Wait for recordId before loading saved data
             this.waitForRecordIdAndLoad();
@@ -75,20 +74,17 @@ export default class ItmBidWorksheet extends LightningElement {
 
         while (attempts < maxAttempts) {
             if (this.recordId) {
-                console.log('✅ recordId available:', this.recordId);
                 // Load version data first, then saved data
                 await this.loadVersionData();
                 await this.loadSavedData();
                 return;
             }
 
-            console.log(`⏳ Waiting for recordId... attempt ${attempts + 1}/${maxAttempts}`);
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
 
         // If still no recordId after all attempts, use fallback
-        console.warn('⚠️ recordId not set after', maxAttempts, 'attempts, using fallback');
         await this.loadVersionData();
         await this.loadSavedData();
     }
@@ -104,8 +100,6 @@ export default class ItmBidWorksheet extends LightningElement {
      * Initialize rows from metadata
      */
     initializeRows(data) {
-        console.log('Initializing rows...');
-
         // Group items by row number
         const laborByRow = this.groupByRow(data.laborFactor);
         const equipmentByRow = this.groupByRow(data.equipmentFactor);
@@ -115,11 +109,6 @@ export default class ItmBidWorksheet extends LightningElement {
         this.laborFactorRows = this.createRowPairs(laborByRow);
         this.equipmentFactorRows = this.createRowPairs(equipmentByRow);
         this.ratesRows = this.createRowPairs(ratesByRow);
-
-        console.log('Labor Factor rows:', this.laborFactorRows.length);
-        console.log('Labor Factor rows:', this.laborFactorRows);
-        console.log('Equipment Factor rows:', this.equipmentFactorRows.length);
-        console.log('Rates rows:', this.ratesRows.length);
     }
 
     /**
@@ -257,19 +246,16 @@ export default class ItmBidWorksheet extends LightningElement {
      */
     async loadSavedData() {
         if (!this.recordId && !this.fallbackRecordId) {
-            console.log('❌ [LOAD ITM] No recordId, skipping load');
             return;
         }
 
         // Don't load if rows haven't been initialized
         if (this.laborFactorRows.length === 0 && this.equipmentFactorRows.length === 0 && this.ratesRows.length === 0) {
-            console.log('⚠️ [LOAD ITM] Rows not initialized yet');
             return;
         }
 
         // Don't load if user is actively editing
         if (this._isUserEditing) {
-            console.log('📍 [LOAD ITM] User is editing, skipping load');
             return;
         }
 
@@ -277,22 +263,17 @@ export default class ItmBidWorksheet extends LightningElement {
 
         try {
             const targetId = this.recordId || this.fallbackRecordId;
-            console.log('🔵 loadSavedData called');
-            console.log('🔵 recordId:', this.recordId);
-            console.log('🔵 targetId (with fallback):', targetId);
 
             let savedData;
             
             // If selectedVersionId is set and not draft, load that specific version
             if (this.selectedVersionId && this.selectedVersionId !== 'draft') {
-                console.log('🔍 [LOAD ITM] Loading specific version:', this.selectedVersionId);
                 const base64Data = await loadVersionById({ versionId: this.selectedVersionId });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
                 }
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD ITM] Loading latest (draft)');
                 const base64Data = await loadLatestITMWorksheet({ opportunityId: targetId });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
@@ -305,17 +286,10 @@ export default class ItmBidWorksheet extends LightningElement {
                 }
             }
 
-            console.log('🔵 savedData received:', savedData ? 'YES' : 'NO');
 
             if (savedData) {
-                console.log('Loading saved data...');
                 const data = typeof savedData === 'string' ? JSON.parse(savedData) : savedData;
 
-                console.log('🔵 Parsed data keys:', Object.keys(data));
-                console.log('🔵 Parsed data keys:', data);
-                console.log('🔵 laborFactorRows count:', data.laborFactorRows?.length);
-                console.log('🔵 equipmentFactorRows count:', data.equipmentFactorRows?.length);
-                console.log('🔵 ratesRows count:', data.ratesRows?.length);
 
                 // Restore quantities and hours
                 if (data.laborFactorRows) {
@@ -336,9 +310,7 @@ export default class ItmBidWorksheet extends LightningElement {
                     this.sprinklerGainPercent = data.sprinklerGainPercent;
                 }
 
-                console.log('✅ Saved data restored');
             } else {
-                console.log('⚠️ No saved data found');
             }
 
         } catch (error) {
@@ -401,15 +373,7 @@ export default class ItmBidWorksheet extends LightningElement {
     }
 
     handleCellChange(event) {
-        console.log('📍 [ITM] handleCellChange called', {
-            isInitializing: this._isInitializing,
-            isLoadingVersion: this.isLoadingVersion,
-            isLoadingData: this._isLoadingData,
-            recordId: this.recordId
-        });
-        
         if (this._isInitializing || this.isLoadingVersion || this._isLoadingData) {
-            console.log('📍 [ITM] Skipping autosave - initialization/loading in progress');
             return;
         }
         
@@ -425,38 +389,30 @@ export default class ItmBidWorksheet extends LightningElement {
             clearTimeout(this.autoSaveTimeout);
         }
         
-        console.log('📍 [ITM] Setting autosave timeout (2 seconds)');
         this.autoSaveTimeout = setTimeout(() => {
-            console.log('📍 [ITM] Autosave timeout fired, calling performAutoSave');
             this.performAutoSave();
         }, 2000);
     }
 
     async performAutoSave() {
         const targetId = this.recordId || this.fallbackRecordId;
-        console.log('📍 [ITM] performAutoSave called', { targetId, recordId: this.recordId });
         
         if (!targetId) {
-            console.warn('⚠️ [ITM] No targetId available for autosave');
             return;
         }
 
         try {
-            console.log('📍 [ITM] Starting autosave...');
             this.autoSaveStatus = 'saving';
             
             const payload = await this.saveSheet();
-            console.log('📍 [ITM] Payload created, encoding...');
             const base64Payload = this.encodeData(payload);
 
-            console.log('📍 [ITM] Calling autoSaveITMWorksheet Apex method...');
             await autoSaveITMWorksheet({
                 opportunityId: targetId,
                 base64Data: base64Payload
             });
 
             // ⭐ Update Opportunity fields during autosave
-            console.log('📍 [ITM] Updating Opportunity fields...');
             const fieldData = {
                 Total_Alarm_Labor_Hours__c: parseFloat(this.totalAlarmLaborHours) || 0,
                 Total_Sprinkler_Labor_Hours__c: parseFloat(this.totalSprinklerLaborHours) || 0,
@@ -471,14 +427,12 @@ export default class ItmBidWorksheet extends LightningElement {
                     opportunityId: targetId,
                     fieldDataJson: JSON.stringify(fieldData)
                 });
-                console.log('✅ [ITM] Opportunity fields updated during autosave');
             } catch (fieldError) {
                 // Don't fail autosave if field update fails, just log it
                 console.warn('⚠️ [ITM] Failed to update Opportunity fields during autosave:', fieldError);
             }
 
             this.autoSaveStatus = 'saved';
-            console.log('✅ [ITM] Auto-saved ITM worksheet successfully');
 
             setTimeout(() => {
                 this.autoSaveStatus = '';
@@ -587,8 +541,6 @@ export default class ItmBidWorksheet extends LightningElement {
         const section = event.target.dataset.section;
         const value = parseFloat(event.target.value) || 0;
 
-        console.log(`Quantity changed: Row ${rowNumber}, Column ${column}, Value ${value}`);
-
         this.updateRowValue(section, rowNumber, column, 'quantity', value);
         this.calculateAllTotals();
     }
@@ -603,8 +555,6 @@ export default class ItmBidWorksheet extends LightningElement {
         const column = event.target.dataset.column;
         const section = event.target.dataset.section;
         const value = parseFloat(event.target.value) || 0;
-
-        console.log(`Hours changed: Row ${rowNumber}, Column ${column}, Value ${value}`);
 
         this.updateRowValue(section, rowNumber, column, 'hours', value);
         this.calculateAllTotals();
@@ -654,21 +604,13 @@ export default class ItmBidWorksheet extends LightningElement {
      * Calculate all totals
      */
     calculateAllTotals() {
-        console.log('Calculating all totals...');
-
         // Section 1: Labor Factor totals
         this.totalAlarmLaborHours = this.sumColumn(this.laborFactorRows, 'left').toFixed(2);
         this.totalSprinklerLaborHours = this.sumColumn(this.laborFactorRows, 'right').toFixed(2);
 
-        console.log('Total Alarm Labor Hours:', this.totalAlarmLaborHours);
-        console.log('Total Sprinkler Labor Hours:', this.totalSprinklerLaborHours);
-
         // Section 2: Equipment Factor totals
         this.totalAlarmEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'left').toFixed(2);
         this.totalSprinklerEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'right').toFixed(2);
-
-        console.log('Total Alarm Equipment Cost:', this.totalAlarmEquipmentCost);
-        console.log('Total Sprinkler Equipment Cost:', this.totalSprinklerEquipmentCost);
 
         // Section 3: Rates - Auto-populate Labor Mix Rate quantities
         if (this.ratesRows.length > 0) {
@@ -688,15 +630,9 @@ export default class ItmBidWorksheet extends LightningElement {
         this.alarmSubtotal = (parseFloat(this.totalAlarmEquipmentCost) + alarmRatesTotal).toFixed(2);
         this.sprinklerSubtotal = (parseFloat(this.totalSprinklerEquipmentCost) + sprinklerRatesTotal).toFixed(2);
 
-        console.log('Alarm Subtotal:', this.alarmSubtotal);
-        console.log('Sprinkler Subtotal:', this.sprinklerSubtotal);
-
         // Total Quote = Subtotal * (1 + Gain%)
         this.alarmTotalQuote = (parseFloat(this.alarmSubtotal) * (1 + this.alarmGainPercent)).toFixed(2);
         this.sprinklerTotalQuote = (parseFloat(this.sprinklerSubtotal) * (1 + this.sprinklerGainPercent)).toFixed(2);
-
-        console.log('Alarm Total Quote:', this.alarmTotalQuote);
-        console.log('Sprinkler Total Quote:', this.sprinklerTotalQuote);
     }
 
     /**
@@ -736,16 +672,10 @@ export default class ItmBidWorksheet extends LightningElement {
      */
     async handleSave() {
         const targetId = this.recordId || this.fallbackRecordId;
-        console.log('🔵 handleSave called');
-        console.log('🔵 recordId:', this.recordId);
-        console.log('🔵 targetId (with fallback):', targetId);
-        console.log('🔵 isSaving:', this.isSaving);
 
         this.isSaving = true;
 
         try {
-            console.log('Saving ITM worksheet...');
-
             // Prepare data to save
             const worksheetData = {
                 worksheetType: 'ITM',
@@ -779,8 +709,6 @@ export default class ItmBidWorksheet extends LightningElement {
                 base64Data: base64Data
             });
 
-            console.log('✅ ITM worksheet saved successfully');
-
             // ⭐ Refresh version data AFTER save (so nextVersionNumber is updated)
             await this.loadVersionData();
             
@@ -803,7 +731,6 @@ export default class ItmBidWorksheet extends LightningElement {
                 fieldDataJson: JSON.stringify(fieldData)
             });
 
-            console.log('✅ Opportunity fields updated for ITM worksheet');
             this.showToast('Success', 'ITM Bid Worksheet saved successfully!', 'success');
 
         } catch (error) {

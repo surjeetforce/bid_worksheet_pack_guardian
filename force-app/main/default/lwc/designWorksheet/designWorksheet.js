@@ -16,6 +16,11 @@ export default class DesignWorksheet extends LightningElement {
     _editingTimeout = null;
 
     @api
+    get currentJobName() {
+        return this.formData ? this.formData.jobName : '';
+    }
+
+    @api
     get versionIdToLoad() {
         return this._versionIdToLoad;
     }
@@ -26,7 +31,6 @@ export default class DesignWorksheet extends LightningElement {
         
         // Only reload if value changed and formData is initialized
         if (oldValue !== value && this.formData) {
-            console.log(`📍 [Design] versionIdToLoad changed from ${oldValue} to ${value}`);
             // Don't reload if user is actively editing
             if (!this._isUserEditing) {
                 this.loadSavedData();
@@ -172,13 +176,11 @@ export default class DesignWorksheet extends LightningElement {
 
     async loadSavedData() {
         if (!this.recordId) {
-            console.log('❌ [LOAD Design] No recordId, skipping load');
             return;
         }
 
         // Don't load if user is actively editing
         if (this._isUserEditing) {
-            console.log('📍 [LOAD Design] User is editing, skipping load to prevent data loss');
             return;
         }
 
@@ -190,7 +192,6 @@ export default class DesignWorksheet extends LightningElement {
             
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
-                console.log('🔍 [LOAD Design] Loading specific version:', this.versionIdToLoad);
                 const base64Data = await loadVersionById_Design({ versionId: this.versionIdToLoad });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
@@ -198,7 +199,6 @@ export default class DesignWorksheet extends LightningElement {
                 this._lastLoadedVersionId = this.versionIdToLoad;
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD Design] Loading latest (draft)');
                 const base64Data = await loadLatestDesignWorksheet({ opportunityId: this.recordId });
                 if (base64Data) {
                     savedData = this.decodeData(base64Data);
@@ -217,12 +217,9 @@ export default class DesignWorksheet extends LightningElement {
                     this.formData = { ...this.formData, ...data.formData };
                 }
 
-                console.log('✅ [LOAD Design] Design Worksheet data loaded');
             } else {
-                console.log('⚠️ [LOAD Design] No saved Design Worksheet data found');
             }
         } catch (error) {
-            console.log('⚠️ [LOAD Design] No saved data found or error:', error);
         } finally {
             this.isLoading = false;
             // Clear loading flag after a delay to allow DOM to settle
@@ -265,7 +262,6 @@ export default class DesignWorksheet extends LightningElement {
             this.notifyParentForAutoSave();
         }
         this.formData[field] = value;
-        console.log(`Field updated: ${field} = ${value}`);
     }
 
     handleKeyDown(event) {
@@ -321,7 +317,6 @@ export default class DesignWorksheet extends LightningElement {
         const field = event.target.dataset.field;
         const checked = event.target.checked;
         this.formData[field] = checked;
-        console.log(`Checkbox updated: ${field} = ${checked ? 'YES/TRUE' : 'NO/FALSE'}`);
         
         // Notify parent for autosave (only if not loading data)
         if (!this._isLoadingData) {
@@ -354,7 +349,6 @@ export default class DesignWorksheet extends LightningElement {
         ]
 
         let selectedfield = fields.find(field => this.formData[field] == true);
-        console.log('selectedfield :- ', selectedfield);
 
         let disabledMap = {};
         fields.forEach(field => {
@@ -370,7 +364,6 @@ export default class DesignWorksheet extends LightningElement {
             savedDate: new Date().toISOString()
         };
 
-        console.log('Saving Design Worksheet:', data);
         return data;
     }
 

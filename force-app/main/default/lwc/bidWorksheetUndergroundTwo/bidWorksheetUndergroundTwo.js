@@ -26,8 +26,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         
         this._versionIdToLoad = value;
         
-        console.log('🔔 Sheet #2 versionIdToLoad changed:', { oldValue, newValue: value, lastLoaded: this._lastLoadedVersionId });
-        
         // Always reload if:
         // 1. lastLoaded is null (first time load) - ALWAYS reload on first load
         // 2. OR value actually changed (normalized comparison)
@@ -43,27 +41,15 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
             
-            console.log('🔔 Sheet #2: Version changed, checking if tableRows are ready...', {
-                hasTableRows: !!this.tableRows,
-                tableRowsLength: this.tableRows?.length || 0
-            });
-            
             // Only load if tableRows are initialized (metadata loaded)
             if (this.tableRows && this.tableRows.length > 0) {
-                console.log('✅ Sheet #2: tableRows ready, triggering loadSavedSheet()');
                 // Small delay to ensure DOM is stable
                 setTimeout(() => {
                     this.loadSavedSheet();
                 }, 100);
             } else {
-                console.log('⏳ Sheet #2: tableRows not ready yet, will load when metadata is ready');
             }
         } else {
-            console.log('⏸️ Sheet #2: Version not changed or already loaded, skipping reload', {
-                valueChanged,
-                isFirstLoad,
-                isDifferentVersion
-            });
         }
     }
 
@@ -168,7 +154,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         
         this.calculationTimeout = setTimeout(() => {
             if (this.tableRows && this.tableRows.length > 0) {
-                console.log(`Sheet #1 Subtotal changed to: $${value} - Recalculating Sheet #2...`);
                 this.calculateTotals();
             }
         }, 300);
@@ -177,21 +162,12 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
     @wire(getSheet2Items)
     wiredItems({ error, data }) {
         if (data) {
-            console.log('Sheet #2 metadata loaded successfully');
-            console.log('Number of rows:', data.length);
-            
             // ⭐ Set flag FIRST to prevent autosave during initialization
             this._isLoadingData = true;
             
             this.initializeDataFromMetadata(data);
             this.isLoading = false;
             this.calculateTotals();
-            
-            // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
-            // This ensures the setter fires and loads data
-            console.log('📍 Sheet #2: Attempting to load saved data...');
-            console.log('📍 Sheet #2: Current versionIdToLoad:', this._versionIdToLoad);
-            console.log('📍 Sheet #2: tableRows ready:', this.tableRows && this.tableRows.length > 0);
             
             // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
             // This ensures the setter fires and loads data
@@ -207,7 +183,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             // The flag will be cleared by loadSavedSheet's applyLoadedData, but we set a timeout as backup
             setTimeout(() => {
                 if (this._isLoadingData) {
-                    console.log('📍 Sheet #2: Clearing _isLoadingData flag after initialization');
                     this._isLoadingData = false;
                 }
             }, 1500); // Give enough time for loadSavedSheet to complete
@@ -225,36 +200,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             this.createRowFromMetadata(item, index)
         );
         this.nextRowId = this.tableRows.length;
-
-        console.log('=== Underground Sheet 2 (Section 2) Row Mapping ===');
-
-        const row83 = this.tableRows.find(r => r.excelRow === 83);
-        const row84 = this.tableRows.find(r => r.excelRow === 84);
-
-        if (row83) {
-            console.log('✅ Row 83 (Pump) found:', {
-                excelRow: row83.excelRow,
-                rightDescription: row83.right.description
-            });
-        } else {
-            console.warn('❌ Row 83 (Pump) NOT FOUND');
-        }
-
-        if (row84) {
-            console.log('✅ Row 84 (FHV) found:', {
-                excelRow: row84.excelRow,
-                rightDescription: row84.right.description
-            });
-        } else {
-            console.warn('❌ Row 84 (FHV) NOT FOUND');
-        }
-
-        console.log('Total rows loaded:', this.tableRows.length);
-        console.log('Row range:',
-            this.tableRows[0]?.excelRow,
-            'to',
-            this.tableRows[this.tableRows.length - 1]?.excelRow
-        );
     }
 
     createRowFromMetadata(data, id) {
@@ -341,7 +286,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const initialOverheadRate = parseFloat(data.right.unitPrice);
             if (!isNaN(initialOverheadRate)) {
                 this.overheadPercent = initialOverheadRate * 100;
-                console.log(`Initialized overhead percentage: ${this.overheadPercent}% from metadata`);
             }
         }
 
@@ -350,7 +294,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const initialGainRate = parseFloat(data.right.unitPrice);
             if (!isNaN(initialGainRate)) {
                 this.gainPercent = initialGainRate * 100;
-                console.log(`Initialized gain percentage: ${this.gainPercent}% from metadata`);
             }
         }
 
@@ -359,7 +302,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const taxRate = parseFloat(data.right.unitPrice);
             if (!isNaN(taxRate)) {
                 this.SALES_TAX_RATE = taxRate;
-                console.log(`Initialized Sales Tax Rate: ${this.SALES_TAX_RATE} from metadata`);
             }
         }
 
@@ -367,7 +309,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const cartageRate = parseFloat(data.right.unitPrice);
             if (!isNaN(cartageRate)) {
                 this.CARTAGE_RATE = cartageRate;
-                console.log(`Initialized Cartage Rate: ${this.CARTAGE_RATE} from metadata`);
             }
         }
 
@@ -375,7 +316,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const assessmentRate = parseFloat(data.right.unitPrice);
             if (!isNaN(assessmentRate)) {
                 this.ASSESSMENTS_RATE = assessmentRate;
-                console.log(`Initialized Assessments Rate: ${this.ASSESSMENTS_RATE} from metadata`);
             }
         }
 
@@ -446,8 +386,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const field = event.target.dataset.field;
         const value = event.target.value;
 
-        console.log(`Cell changed: Row ${rowId}, Col ${col}, Field ${field}, Value: ${value}`);
-
         const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
         if (rowIndex !== -1) {
             const updatedRow = { ...this.tableRows[rowIndex] };
@@ -471,29 +409,23 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                 if (excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX) {
                     if (!isNaN(numericValue)) {
                         this.SALES_TAX_RATE = numericValue;
-                        console.log(`✅ Sales Tax Rate updated to: ${this.SALES_TAX_RATE}`);
                     }
                 } else if (excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE) {
                     if (!isNaN(numericValue)) {
                         this.CARTAGE_RATE = numericValue;
-                        console.log(`✅ Cartage Rate updated to: ${this.CARTAGE_RATE}`);
                     }
                 } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL) {
                     if (!isNaN(numericValue)) {
                         this.ASSESSMENTS_RATE = numericValue;
-                        console.log(`✅ Assessments Rate updated to: ${this.ASSESSMENTS_RATE}`);
                     }
                 } else if (excelRow === BidWorksheetUndergroundTwo.ROW_LABOR_FACTOR) {
-                    console.log(`✅ Travel/Subsistance Rate updated to: ${numericValue}`);
                 } else if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD) {
                     if (!isNaN(numericValue)) {
                         this.overheadPercent = numericValue * 100;
-                        console.log(`✅ Overhead % updated to: ${this.overheadPercent}%`);
                     }
                 } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
                     if (!isNaN(numericValue)) {
                         this.gainPercent = numericValue * 100;
-                        console.log(`✅ Gain % updated to: ${this.gainPercent}%`);
                     }
                 }
             }
@@ -683,12 +615,9 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         }
 
         this.tableRows = [...this.tableRows];
-        console.log('✅ Updated all calculated row displays');
     }
 
     calculateTotals() {
-        console.log('Starting calculation sequence...');
-
         this.calculateGrandTotalMaterialCost();
         this.calculateSalesTaxAndCartage();
         this.calculateTotalLaborHours();
@@ -704,9 +633,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         this.calculateFinalTotal();
 
         this.updateAllCalculatedRowDisplays();
-
-        console.log('Calculation sequence complete!');
-        console.log('FINAL TOTAL: $' + this.totalUndergroundPrice);
 
         this.notifyParent();
         
@@ -740,14 +666,12 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         }
 
         this.grandTotalMaterial = (sheet1Total + materialItemsTotal).toFixed(2);
-        console.log(`Grand Total Material: $${this.grandTotalMaterial}`);
     }
 
     calculateSalesTaxAndCartage() {
         const grandTotal = parseFloat(this.grandTotalMaterial) || 0;
         this.salesTax = (grandTotal * this.SALES_TAX_RATE).toFixed(2);
         this.cartage = (grandTotal * this.CARTAGE_RATE).toFixed(2);
-        console.log(`Sales Tax: $${this.salesTax}, Cartage: $${this.cartage}`);
     }
 
     calculateTotalLaborHours() {
@@ -764,7 +688,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         }
 
         this.totalLaborHours = totalHours.toFixed(2);
-        console.log(`Total Labor Hours: ${this.totalLaborHours} hrs`);
     }
 
     calculateLaborCosts() {
@@ -788,7 +711,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         this.engineeringCost = (engHours * engUnitPrice).toFixed(2);
         this.fabricationCost = (fabHours * fabUnitPrice).toFixed(2);
 
-        console.log(`Labor Cost: $${this.laborCost}`);
     }
 
     calculateFieldEngFabTotal() {
@@ -796,13 +718,11 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const engineering = parseFloat(this.engineeringCost) || 0;
         const fabrication = parseFloat(this.fabricationCost) || 0;
         this.fieldEngFabTotal = (labor + engineering + fabrication).toFixed(2);
-        console.log(`Field/Eng/Fab Total: $${this.fieldEngFabTotal}`);
     }
 
     calculateAssessments() {
         const total = parseFloat(this.fieldEngFabTotal) || 0;
         this.assessments = (total * this.ASSESSMENTS_RATE).toFixed(2);
-        console.log(`Assessments: $${this.assessments}`);
     }
 
     calculateMaterialEquipSubtotal() {
@@ -822,7 +742,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         }
 
         this.materialEquipSubtotal = (grandTotal + salesTax + cartage + additionalItems).toFixed(2);
-        console.log(`Material/Equipment Subtotal: $${this.materialEquipSubtotal}`);
     }
 
     calculateLaborFactor() {
@@ -833,7 +752,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const userRate = parseFloat(row94?.right.unitPrice) || 0;
 
         this.laborFactor = (factor * userRate).toFixed(2);
-        console.log(`Labor Factor: $${this.laborFactor}`);
     }
 
     calculateSubtotalBeforeGain() {
@@ -842,33 +760,28 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const laborFactor = parseFloat(this.laborFactor) || 0;
         const fieldEngFabTotal = parseFloat(this.fieldEngFabTotal) || 0;
         this.subtotalBeforeGain = (materialEquip + assessments + laborFactor + fieldEngFabTotal).toFixed(2);
-        console.log(`Subtotal Before Gain: $${this.subtotalBeforeGain}`);
     }
 
     calculateOverhead() {
         const subtotalBeforeGain = parseFloat(this.subtotalBeforeGain) || 0;
         this.overhead = (subtotalBeforeGain * (this.overheadPercent / 100)).toFixed(2);
-        console.log(`Overhead (${this.overheadPercent}%): $${this.overhead}`);
     }
 
     calculateSubtotalAfterGain() {
         const beforeGain = parseFloat(this.subtotalBeforeGain) || 0;
         const overhead = parseFloat(this.overhead) || 0;
         this.subtotalAfterGain = (beforeGain + overhead).toFixed(2);
-        console.log(`Subtotal After Overhead: $${this.subtotalAfterGain}`);
     }
 
     calculateGain() {
         const subtotal = parseFloat(this.subtotalAfterGain) || 0;
         this.gain = (subtotal * (this.gainPercent / 100)).toFixed(2);
-        console.log(`Gain (${this.gainPercent}%): $${this.gain}`);
     }
 
     calculateFinalTotal() {
         const subtotalAfterGain = parseFloat(this.subtotalAfterGain) || 0;
         const gain = parseFloat(this.gain) || 0;
         this.totalUndergroundPrice = (subtotalAfterGain + gain).toFixed(2);
-        console.log(`TOTAL UNDERGROUND PRICE: $${this.totalUndergroundPrice}`);
     }
 
     calculateGross(amount, unitPrice) {
@@ -893,7 +806,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         return new Promise((resolve, reject) => {
             try {
                 const sheetData = this.collectFormData();
-                console.log('Sheet #2 Data:', JSON.stringify(sheetData, null, 2));
                 resolve(sheetData);
             } catch (error) {
                 reject(error);
@@ -937,12 +849,10 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
     async loadSavedSheet() {
         if (!this.recordId) {
-            console.log('❌ [LOAD] No recordId, skipping load');
             return;
         }
 
         if (!this.tableRows || this.tableRows.length === 0) {
-            console.log('⚠️ [LOAD] TableRows not initialized yet');
             return;
         }
 
@@ -951,16 +861,13 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
-                console.log('🔍 [LOAD Sheet #2] Loading specific version:', this.versionIdToLoad);
                 base64Data = await loadVersionById({ versionId: this.versionIdToLoad });
             } else {
                 // Otherwise, load latest (autosave or most recent)
-                console.log('🔍 [LOAD Sheet #2] Starting load for Opportunity:', this.recordId);
                 base64Data = await loadLatestSheet({ opportunityId: this.recordId });
             }
 
             if (!base64Data) {
-                console.log('⚠️ [LOAD] No saved data found - using defaults');
                 return;
             }
 
@@ -968,13 +875,11 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             const savedState = JSON.parse(jsonString);
 
             this.applyLoadedData(savedState);
-            console.log('✅ [LOAD] Loaded saved Sheet #2 state');
 
         } catch (error) {
             const errorMessage = error?.body?.message || error?.message || String(error);
 
             if (errorMessage.includes('not found') || errorMessage.includes('No ContentVersion') || errorMessage.includes('List has no rows')) {
-                console.log('⚠️ [LOAD] No saved file found yet (first time use)');
                 return;
             }
             this.logError('Load saved sheet failed', error);
@@ -986,12 +891,10 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
     applyLoadedData(data) {
         if (!data) {
-            console.log('❌ [APPLY] No data provided');
             return;
         }
 
         if (!this.tableRows || this.tableRows.length === 0) {
-            console.log('❌ [APPLY] TableRows not initialized yet');
             return;
         }
 
@@ -1028,8 +931,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             this.overheadPercent = updateIfExists(sheetData.overheadPercent, 0);
             this.overhead = updateIfExists(sheetData.overhead, this.overhead);
             this.totalUndergroundPrice = updateIfExists(sheetData.totalUndergroundPrice, this.totalUndergroundPrice);
-
-            console.log('🔧 [APPLY] Restored rates - Sales Tax:', this.SALES_TAX_RATE, 'Cartage:', this.CARTAGE_RATE);
 
             if (sheetData.lineItems && Array.isArray(sheetData.lineItems) && sheetData.lineItems.length > 0) {
                 const mergedRows = this.tableRows.map((existingRow, index) => {
@@ -1090,7 +991,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
             setTimeout(() => {
                 this.calculateTotals();
-                console.log('✅ [APPLY] Applied loaded Sheet #2 data successfully');
                 
                 // Clear flag after a delay to allow DOM to settle and prevent autosave
                 setTimeout(() => {
