@@ -320,7 +320,6 @@ export default class BidWorksheetEstimate extends LightningElement {
     }
 
     createRowFromMetadata(data, id) {
-        // Check if descriptions are empty
         const leftDescEmpty = !data.left.description || data.left.description.trim() === '';
         const rightDescEmpty = !data.right.description || data.right.description.trim() === '';
 
@@ -563,26 +562,31 @@ export default class BidWorksheetEstimate extends LightningElement {
     }
 
     calculateTotals() {
-        this.section1Subtotal = this.calculateSectionTotal(this.section1Rows);
-        this.section2Subtotal = this.calculateSectionTotal(this.section2Rows);
-
+        // 1. Run formula logic first to update calculated rows
         this.applySection3Calculations();
 
+        // 2. NOW calculate the subtotals based on the updated rows
+        this.section1Subtotal = this.calculateSectionTotal(this.section1Rows);
+        this.section2Subtotal = this.calculateSectionTotal(this.section2Rows);
         this.section3Subtotal = this.calculateSectionTotal(this.section3Rows);
 
+        // 3. Update grand total
         const s1 = parseFloat(this.section1Subtotal) || 0;
         const s2 = parseFloat(this.section2Subtotal) || 0;
         const s3 = parseFloat(this.section3Subtotal) || 0;
         this.grandTotal = (s1 + s2 + s3).toFixed(2);
 
+        console.log(`Totals: S1=$${this.section1Subtotal}, S2=$${this.section2Subtotal}, S3=$${this.section3Subtotal}, Grand=$${this.grandTotal}`);
+
         this.notifyParent();
     }
 
     applySection1Calculations() {
-        const s1Rows = this.section1Rows;
+        const s1Rows = [...this.section1Rows];
+        let sectionChanged = false;
 
-        const findRow = (excelRowNum) => {
-            return s1Rows.find(r => r.excelRow === excelRowNum);
+        const findRowIndex = (excelRowNum) => {
+            return s1Rows.findIndex(r => r.excelRow === excelRowNum);
         };
 
         const getGross = (row, side) => {
@@ -596,62 +600,89 @@ export default class BidWorksheetEstimate extends LightningElement {
         };
 
         // ROW 22: TOTAL HEADS
-        const row22 = findRow(22);
-        if (row22) {
+        const row22Idx = findRowIndex(22);
+        if (row22Idx !== -1) {
             let totalQty = 0;
             let totalGross = 0;
 
             for (let i = 5; i <= 21; i++) {
-                const r = findRow(i);
-                if (r) {
-                    totalQty += getQty(r, 'left');
-                    totalGross += getGross(r, 'left');
+                const rIdx = findRowIndex(i);
+                if (rIdx !== -1) {
+                    totalQty += getQty(s1Rows[rIdx], 'left');
+                    totalGross += getGross(s1Rows[rIdx], 'left');
                 }
             }
 
-            row22.left.quantity = totalQty > 0 ? totalQty.toFixed(2) : '';
-            row22.left.gross = totalGross > 0 ? totalGross.toFixed(2) : '';
-            row22.left.quantityReadonly = true;
-            row22.left.unitPriceReadonly = true; // ⭐ ADDED
-            row22.left.grossReadonly = true;
+            const row22 = s1Rows[row22Idx];
+            const newQty = totalQty > 0 ? totalQty.toFixed(2) : '';
+            const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
+
+            if (row22.left.quantity !== newQty || row22.left.gross !== newGross) {
+                s1Rows[row22Idx] = {
+                    ...row22,
+                    left: {
+                        ...row22.left,
+                        quantity: newQty,
+                        gross: newGross,
+                        quantityReadonly: true,
+                        unitPriceReadonly: true,
+                        grossReadonly: true
+                    }
+                };
+                sectionChanged = true;
+            }
         }
 
         // ROW 69: SUB TOTAL SHT #1
-        // Formula: SUM(I22)+SUM(I23:I67)+SUM(R5:R67)
-        const row69 = findRow(69);
-        if (row69) {
+        const row69Idx = findRowIndex(69);
+        if (row69Idx !== -1) {
             let totalGross = 0;
 
-            // Left column: SUM(I22)+SUM(I23:I67) = SUM(I22:I67)
+            // Left column: SUM(I22:I67)
             for (let i = 22; i <= 67; i++) {
-                const r = findRow(i);
-                if (r) {
-                    totalGross += getGross(r, 'left');
+                const rIdx = findRowIndex(i);
+                if (rIdx !== -1) {
+                    totalGross += getGross(s1Rows[rIdx], 'left');
                 }
             }
 
             // Right column: SUM(R5:R67)
             for (let i = 5; i <= 67; i++) {
-                const r = findRow(i);
-                if (r) {
-                    totalGross += getGross(r, 'right');
+                const rIdx = findRowIndex(i);
+                if (rIdx !== -1) {
+                    totalGross += getGross(s1Rows[rIdx], 'right');
                 }
             }
 
-            row69.left.gross = totalGross > 0 ? totalGross.toFixed(2) : '';
-            row69.left.quantityReadonly = true; // ⭐ ADDED
-            row69.left.unitPriceReadonly = true; // ⭐ ADDED
-            row69.left.grossReadonly = true;
+            const row69 = s1Rows[row69Idx];
+            const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
+
+            if (row69.left.gross !== newGross) {
+                s1Rows[row69Idx] = {
+                    ...row69,
+                    left: {
+                        ...row69.left,
+                        gross: newGross,
+                        quantityReadonly: true,
+                        unitPriceReadonly: true,
+                        grossReadonly: true
+                    }
+                };
+                sectionChanged = true;
+            }
         }
 
-        this.section1Rows = [...s1Rows];
+        if (sectionChanged) {
+            this.section1Rows = s1Rows;
+        }
     }
 
     applySection2Calculations() {
-        const s2Rows = this.section2Rows;
+        const s2Rows = [...this.section2Rows];
+        let sectionChanged = false;
 
-        const findRow = (excelRowNum) => {
-            return s2Rows.find(r => r.excelRow === excelRowNum);
+        const findRowIndex = (excelRowNum) => {
+            return s2Rows.findIndex(r => r.excelRow === excelRowNum);
         };
 
         const getGross = (row, side) => {
@@ -660,35 +691,50 @@ export default class BidWorksheetEstimate extends LightningElement {
         };
 
         // ROW 125: SUB TOTAL SHT #2
-        const row125 = findRow(125);
-        if (row125) {
+        const row125Idx = findRowIndex(125);
+        if (row125Idx !== -1) {
             let totalGross = 0;
 
             for (let i = 77; i <= 123; i++) {
-                const r = findRow(i);
-                if (r) {
-                    totalGross += getGross(r, 'left');
-                    totalGross += getGross(r, 'right');
+                const rIdx = findRowIndex(i);
+                if (rIdx !== -1) {
+                    totalGross += getGross(s2Rows[rIdx], 'left');
+                    totalGross += getGross(s2Rows[rIdx], 'right');
                 }
             }
 
-            row125.left.gross = totalGross > 0 ? totalGross.toFixed(2) : '';
-            row125.left.quantityReadonly = true; // ⭐ ADDED
-            row125.left.unitPriceReadonly = true; // ⭐ ADDED
-            row125.left.grossReadonly = true;
+            const row125 = s2Rows[row125Idx];
+            const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
+
+            if (row125.left.gross !== newGross) {
+                s2Rows[row125Idx] = {
+                    ...row125,
+                    left: {
+                        ...row125.left,
+                        gross: newGross,
+                        quantityReadonly: true,
+                        unitPriceReadonly: true,
+                        grossReadonly: true
+                    }
+                };
+                sectionChanged = true;
+            }
         }
 
-        this.section2Rows = [...s2Rows];
+        if (sectionChanged) {
+            this.section2Rows = s2Rows;
+        }
     }
 
     applySection3Calculations() {
         this.applySection1Calculations();
         this.applySection2Calculations();
 
-        const s3Rows = this.section3Rows;
+        const s3Rows = [...this.section3Rows];
+        let sectionChanged = false;
 
-        const findRow = (excelRowNum) => {
-            return s3Rows.find(r => r.excelRow === excelRowNum);
+        const findIdx = (excelRowNum) => {
+            return s3Rows.findIndex(r => r.excelRow === excelRowNum);
         };
 
         const getGross = (row, side) => {
@@ -706,552 +752,480 @@ export default class BidWorksheetEstimate extends LightningElement {
             return parseFloat(row[side].unitPrice) || 0;
         };
 
-        // ROW 133: TOTAL MAT'L SHT #1 & 2
-        const row133 = findRow(133);
-        if (row133) {
-            const row69 = this.section1Rows.find(r => r.excelRow === 69);
-            const row125 = this.section2Rows.find(r => r.excelRow === 125);
-
-            const row69Total = row69 ? (parseFloat(row69.left.gross) || 0) : 0;
-            const row125Total = row125 ? (parseFloat(row125.left.gross) || 0) : 0;
-
-            row133.left.gross = (row69Total + row125Total).toFixed(2);
-            row133.left.quantityReadonly = true; // ⭐ ADDED
-            row133.left.unitPriceReadonly = true; // ⭐ ADDED
-            row133.left.grossReadonly = true;
-        }
-
-        // ROW 135: SALES TAX 10%
-        const row135 = findRow(135);
-        if (row135 && row133) {
-            const materialTotal = parseFloat(row133.right.gross) || 0;
-            const taxRate = getUnit(row135, 'right') || 0;
-            row135.right.gross = (materialTotal * taxRate).toFixed(2);
-            row135.right.quantityReadonly = true; // ⭐ ADDED
-            // ⭐ Unit price is editable (tax rate can be changed)
-            row135.right.grossReadonly = true;
-        }
-
-        // ROW 155: GRAND TOTAL MATERIAL COST
-        const row155 = findRow(155);
-        if (row155) {
-            let sum = 0;
-            for (let i = 133; i <= 153; i++) {
-                const r = findRow(i);
-                if (r) sum += getGross(r, 'left');
+        const updateRowSide = (idx, side, updates) => {
+            const row = s3Rows[idx];
+            let changed = false;
+            for (let key in updates) {
+                if (row[side][key] !== updates[key]) {
+                    changed = true;
+                    break;
+                }
             }
-            row155.left.gross = sum.toFixed(2);
-            row155.left.quantityReadonly = true; // ⭐ ADDED
-            row155.left.unitPriceReadonly = true; // ⭐ ADDED
-            row155.left.grossReadonly = true;
-
-            if (row133) {
-                row133.right.gross = row155.left.gross;
-                row133.right.quantityReadonly = true; // ⭐ ADDED
-                row133.right.unitPriceReadonly = true; // ⭐ ADDED
-                row133.right.grossReadonly = true;
+            if (changed) {
+                s3Rows[idx] = {
+                    ...row,
+                    [side]: { ...row[side], ...updates }
+                };
+                sectionChanged = true;
             }
-        }
+        };
 
-        // ROW 152: MATERIAL, PRMT., EQUIP., ....
-        const row152 = findRow(152);
-        if (row152) {
-            let sum = 0;
-            for (let i = 133; i <= 150; i++) {
-                const r = findRow(i);
-                if (r) sum += getGross(r, 'right');
-            }
-            row152.right.gross = sum.toFixed(2);
-            row152.right.quantityReadonly = true; // ⭐ ADDED
-            row152.right.unitPriceReadonly = true; // ⭐ ADDED
-            row152.right.grossReadonly = true;
-        }
+        // Get common dependencies
+        const row22 = this.section1Rows.find(r => r.excelRow === 22);
+        const headcountFromS1 = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
 
-        // ROW 153: FIELD, ENGR., FAB TOTAL
-        const row153 = findRow(153);
-        if (row153) {
-            const row189 = findRow(189);
-            const laborTotal = row189 ? (parseFloat(row189.left.gross) || 0) : 0;
-            row153.right.gross = laborTotal > 0 ? laborTotal.toFixed(2) : '';
-            row153.right.quantityReadonly = true; // ⭐ ADDED
-            row153.right.unitPriceReadonly = true; // ⭐ ADDED
-            row153.right.grossReadonly = true;
-        }
-
-        // ROW 157: HEADCOUNT
-        const row157 = findRow(157);
-        if (row157) {
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            row157.left.size = headcount > 0 ? headcount.toFixed(2) : '';
-            row157.left.quantity = '';
-            row157.left.quantityReadonly = true;
-            row157.left.unitPriceReadonly = true; // ⭐ ADDED
-            row157.left.grossReadonly = true; // ⭐ ADDED
-        }
-
-
-        // ROW 160: TOTAL DIRECT COST
-        const row160 = findRow(160);
-        if (row160) {
-            let sum = 0;
-            for (let i = 152; i <= 158; i++) {
-                const r = findRow(i);
-                if (r) sum += getGross(r, 'right');
-            }
-            row160.right.gross = sum > 0 ? sum.toFixed(2) : '';
-            row160.right.quantityReadonly = true; // ⭐ ADDED
-            row160.right.unitPriceReadonly = true; // ⭐ ADDED
-            row160.right.grossReadonly = true;
-        }
-
-        // ROW 161: %OVERHEAD
-        const row161 = findRow(161);
-        if (row161 && row160) {
-            const directCost = parseFloat(row160.right.gross) || 0;
-            row161.right.quantity = directCost > 0 ? directCost.toFixed(2) : '';
-            row161.right.quantityReadonly = true;
-
-            // ⭐ Unit price is editable (overhead % can be changed)
-            const unitPrice = getUnit(row161, 'right') || 0.15;
-            row161.right.gross = directCost > 0 ? (directCost * unitPrice).toFixed(2) : '';
-            row161.right.grossReadonly = true;
-        }
-
-        // ROW 163: SUBTOTAL
-        const row163 = findRow(163);
-        if (row163 && row160 && row161) {
-            const directCost = parseFloat(row160.right.gross) || 0;
-            const overhead = parseFloat(row161.right.gross) || 0;
-            row163.right.gross = (directCost + overhead).toFixed(2);
-            row163.right.quantityReadonly = true; // ⭐ ADDED
-            row163.right.unitPriceReadonly = true; // ⭐ ADDED
-            row163.right.grossReadonly = true;
-        }
-
-        // ROW 164: %GAIN
-        const row164 = findRow(164);
-        if (row164 && row163) {
-            const subtotal = parseFloat(row163.right.gross) || 0;
-            row164.right.quantity = subtotal > 0 ? subtotal.toFixed(2) : '';
-            row164.right.quantityReadonly = true;
-
-            // ⭐ Unit price is editable (gain % can be changed)
-            const unitPrice = getUnit(row164, 'right') || 0.15;
-            row164.right.gross = subtotal > 0 ? (subtotal * unitPrice).toFixed(2) : '';
-            row164.right.grossReadonly = true;
-        }
-
-        // ROW 166: TOTAL QUOTE PRICE
-        const row166 = findRow(166);
-        if (row166 && row163 && row164) {
-            const overhead = getGross(row163, 'right');
-            const gain = getGross(row164, 'right');
-            row166.right.gross = (overhead + gain).toFixed(2);
-            row166.right.quantityReadonly = true; // ⭐ ADDED
-            row166.right.unitPriceReadonly = true; // ⭐ ADDED
-            row166.right.grossReadonly = true;
-        }
-
-        // ROW 167: PRICE MINUS SP, PUMP, BF, MFLEX
-        const row167 = findRow(167);
-        if (row167 && row166) {
-            const quotePrice = parseFloat(row166.right.gross) || 0;
-            const row144 = findRow(144);
-            const row145 = findRow(145);
-            const row150 = findRow(150);
-            const row151 = findRow(151);
-            const row152 = findRow(152);
-
-            const i144 = row144 ? (parseFloat(row144.left.gross) || 0) : 0;
-            const i145 = row145 ? (parseFloat(row145.left.gross) || 0) : 0;
-            const i150 = row150 ? (parseFloat(row150.left.gross) || 0) : 0;
-            const i151 = row151 ? (parseFloat(row151.left.gross) || 0) : 0;
-            const i152 = row152 ? (parseFloat(row152.left.gross) || 0) : 0;
-
-            const result = quotePrice - i144 - i145 - i150 - i151 - i152;
-            row167.right.gross = result.toFixed(2);
-            row167.right.quantityReadonly = true; // ⭐ ADDED
-            row167.right.unitPriceReadonly = true; // ⭐ ADDED
-            row167.right.grossReadonly = true;
-        }
-
-        // ROW 168: GROSS MARGIN
-        const row168 = findRow(168);
-        if (row168 && row161 && row164 && row166) {
-            const overhead = parseFloat(row161.right.gross) || 0;
-            const gain = parseFloat(row164.right.gross) || 0;
-            const quotePrice = parseFloat(row166.right.gross) || 0;
-
-            if (quotePrice > 0) {
-                const margin = (overhead + gain) / quotePrice;
-                row168.right.quantity = margin.toFixed(4);
-                row168.right.quantityReadonly = true;
-            } else {
-                row168.right.quantity = '';
-            }
-            row168.right.unitPriceReadonly = true; // ⭐ ADDED
-            row168.right.grossReadonly = true; // ⭐ ADDED
-        }
-
-        // ROW 169: BOND AMOUNT
-        const row169 = findRow(169);
-        if (row169 && row166) {
-            const totalQuote = parseFloat(row166.right.gross) || 0;
-
-            const bondCalc = (totalQuote / 1000) * 1.5;
-            row169.right.quantity = (bondCalc < 100 ? 100 : bondCalc).toFixed(2);
-            row169.right.quantityReadonly = true;
-
-            row169.right.gross = ((totalQuote / 1000) * 12).toFixed(2);
-            row169.right.unitPriceReadonly = true; // ⭐ ADDED
-            row169.right.grossReadonly = true;
-        }
-
-        // ROW 173: MATERIAL PER HEAD
-        const row173 = findRow(173);
-        if (row173) {
-            const row155 = findRow(155);
-            const row144 = findRow(144);
-            const row145 = findRow(145);
-            const row150 = findRow(150);
-            const row151 = findRow(151);
-            const row152 = findRow(152);
-
-            const i155 = row155 ? (parseFloat(row155.left.gross) || 0) : 0;
-            const i144 = row144 ? (parseFloat(row144.left.gross) || 0) : 0;
-            const i145 = row145 ? (parseFloat(row145.left.gross) || 0) : 0;
-            const i150 = row150 ? (parseFloat(row150.left.gross) || 0) : 0;
-            const i151 = row151 ? (parseFloat(row151.left.gross) || 0) : 0;
-            const i152 = row152 ? (parseFloat(row152.left.gross) || 0) : 0;
-
-            const materialCost = i155 - i151 - i144 - i152 - i145 - i150;
-            row173.right.quantity = materialCost.toFixed(2);
-            row173.right.quantityReadonly = true;
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            row173.right.unitPrice = headcount > 0 ? headcount.toFixed(2) : '';
-            row173.right.unitPriceReadonly = true;
-
-            if (headcount > 0) {
-                row173.right.gross = (materialCost / headcount).toFixed(2);
-                row173.right.grossReadonly = true;
-            }
-        }
-
-        // ROW 174: DIRECT COST PER HEAD
-        const row174 = findRow(174);
-        if (row174 && row160) {
-            const directCost = parseFloat(row160.right.gross) || 0;
-            row174.right.quantity = directCost > 0 ? directCost.toFixed(2) : '';
-            row174.right.quantityReadonly = true;
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            row174.right.unitPrice = headcount > 0 ? headcount.toFixed(2) : '';
-            row174.right.unitPriceReadonly = true;
-
-            if (headcount > 0) {
-                row174.right.gross = (directCost / headcount).toFixed(2);
-                row174.right.grossReadonly = true;
-            }
-        }
-
-        // ROW 175: BUILDING SQ. FOOTAGE
-        const row175 = findRow(175);
-        if (row175) {
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            row175.right.unitPrice = headcount > 0 ? headcount.toFixed(2) : '';
-            row175.right.unitPriceReadonly = true;
-
-            // ⭐ Quantity is editable (user enters sq footage)
-            const qty = getQty(row175, 'right');
-            const unit = parseFloat(row175.right.unitPrice) || 0;
-            if (qty > 0 && unit > 0) {
-                row175.right.gross = (qty / unit).toFixed(2);
-                row175.right.grossReadonly = true;
-            }
-        }
-
-        // ROW 176: SALES COST PER HEAD
-        const row176 = findRow(176);
-        if (row176 && row166) {
-            const quotePrice = parseFloat(row166.right.gross) || 0;
-            const row144 = findRow(144);
-            const row145 = findRow(145);
-            const row150 = findRow(150);
-            const row151 = findRow(151);
-            const row152 = findRow(152);
-
-            const i144 = row144 ? (parseFloat(row144.left.gross) || 0) : 0;
-            const i145 = row145 ? (parseFloat(row145.left.gross) || 0) : 0;
-            const i150 = row150 ? (parseFloat(row150.left.gross) || 0) : 0;
-            const i151 = row151 ? (parseFloat(row151.left.gross) || 0) : 0;
-            const i152 = row152 ? (parseFloat(row152.left.gross) || 0) : 0;
-
-            const salesCost = quotePrice - i144 - i145 - i150 - i151 - i152;
-            row176.right.quantity = salesCost.toFixed(2);
-            row176.right.quantityReadonly = true;
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            row176.right.unitPrice = headcount > 0 ? headcount.toFixed(2) : '';
-            row176.right.unitPriceReadonly = true;
-
-            if (headcount > 0) {
-                row176.right.gross = (salesCost / headcount).toFixed(2);
-                row176.right.grossReadonly = true;
-            }
-        }
-
-        // ROW 178: COST PER SQUARE FOOT
-        const row178 = findRow(178);
-        if (row178 && row167 && row175) {
-            const netPrice = parseFloat(row167.right.gross) || 0;
-            const sqFootage = parseFloat(row175.right.quantity) || 0;
-
-            if (sqFootage > 0) {
-                row178.right.gross = (netPrice / sqFootage).toFixed(2);
-                row178.right.grossReadonly = true;
-            } else {
-                row178.right.gross = '';
-            }
-            // Set quantity and unitPrice to readonly (calculated row)
-            row178.right.quantityReadonly = true;
-            row178.right.unitPriceReadonly = true;
-            // Update class properties to reflect readonly state
-            row178.right.quantityClass = 'readonly-cell';
-            row178.right.unitPriceClass = 'col-unit readonly-cell';
-        }
-
-        // ROW 182: TOTAL LABOR HRS.
-        const row182 = findRow(182);
-        if (row182) {
+        // 1. ROW 182: TOTAL LABOR HRS.
+        const row182Idx = findIdx(182);
+        if (row182Idx !== -1) {
             let sum = 0;
             for (let i = 159; i <= 180; i++) {
-                const r = findRow(i);
-                if (r) sum += getGross(r, 'left');
+                const rIdx = findIdx(i);
+                if (rIdx !== -1) sum += getGross(s3Rows[rIdx], 'left');
             }
-            // Always store with 2 decimal places for backend accuracy
-            // UI will display as whole number if isWholeNumberGross is true
-            row182.left.gross = sum > 0 ? sum.toFixed(2) : '';
-            row182.left.quantityReadonly = true; // ⭐ ADDED
-            row182.left.unitPriceReadonly = true; // ⭐ ADDED
-            row182.left.grossReadonly = true;
+            updateRowSide(row182Idx, 'left', {
+                gross: sum > 0 ? sum.toFixed(2) : '',
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
-        // ROW 184: LABOR (FM+ 7TH PERIOD)
-        const row184 = findRow(184);
-        if (row184 && row182) {
-
-            const laborHrs = parseFloat(row182.left.gross) || 0;
-            // Store precise value in quantityRaw
-            row184.left.quantityRaw = laborHrs > 0 ? laborHrs.toFixed(2) : '';
-
-            // Store with 2 decimals for backend, but display as whole number if configured
-            if (row184.left.isWholeNumberQuantity) {
-                // Display as whole number (rounded) in the quantity field
-                row184.left.quantity = laborHrs > 0 ? Math.round(laborHrs).toString() : '';
-            } else {
-                row184.left.quantity = row184.left.quantityRaw;
-            }
-            row184.left.quantityReadonly = true;
-
-            // ⭐ Unit price is editable (labor rate can be changed)
-            const unitPrice = parseFloat(row184.left.unitPrice) || 0;
-            if (laborHrs > 0 && unitPrice > 0) {
-                row184.left.gross = (laborHrs * unitPrice).toFixed(2);
-            } else {
-                row184.left.gross = '';
-            }
-            row184.left.grossReadonly = true;
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            if (headcount > 0 && laborHrs > 0) {
-                row184.left.size = (laborHrs / headcount).toFixed(2);
-            } else {
-                row184.left.size = '';
-            }
-
+        // 2. ROW 184: LABOR (FM+ 7TH PERIOD) - depends on 182
+        const row184Idx = findIdx(184);
+        if (row184Idx !== -1 && row182Idx !== -1) {
+            const laborHrs = getGross(s3Rows[row182Idx], 'left');
+            const unitPrice = getUnit(s3Rows[row184Idx], 'left');
+            
+            const newQtyRaw = laborHrs > 0 ? laborHrs.toFixed(2) : '';
+            const newQty = (laborHrs > 0 && s3Rows[row184Idx].left.isWholeNumberQuantity) ? Math.round(laborHrs).toString() : newQtyRaw;
+            
+            updateRowSide(row184Idx, 'left', {
+                quantityRaw: newQtyRaw,
+                quantity: newQty,
+                quantityReadonly: true,
+                gross: (laborHrs > 0 && unitPrice > 0) ? (laborHrs * unitPrice).toFixed(2) : '',
+                grossReadonly: true,
+                size: (headcountFromS1 > 0 && laborHrs > 0) ? (laborHrs / headcountFromS1).toFixed(2) : ''
+            });
         }
 
-        // ROW 185: ENGINEERING HALF HOUR HEAD
-        const row185 = findRow(185);
-        if (row185) {
-            // ⭐ Quantity is editable (user can enter engineering hours)
-            const qty = getQty(row185, 'left') || 40;
-            // ⭐ Unit price is editable (engineering rate can be changed)
-            const unitPrice = getUnit(row185, 'left');
-
-            if (qty > 0 && unitPrice > 0) {
-                row185.left.gross = (qty * unitPrice).toFixed(2);
-            } else {
-                row185.left.gross = '';
-            }
-            row185.left.grossReadonly = true; // ⭐ Gross is calculated
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-            if (headcount > 0 && qty > 0) {
-                row185.left.size = (qty / headcount).toFixed(2);
-            } else {
-                row185.left.size = '';
-            }
+        // 3. ROW 185: ENGINEERING HALF HOUR HEAD
+        const row185Idx = findIdx(185);
+        if (row185Idx !== -1) {
+            const qty = getQty(s3Rows[row185Idx], 'left');
+            const unitPrice = getUnit(s3Rows[row185Idx], 'left');
+            
+            updateRowSide(row185Idx, 'left', {
+                gross: (qty > 0 && unitPrice > 0) ? (qty * unitPrice).toFixed(2) : '',
+                grossReadonly: true,
+                size: (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : ''
+            });
         }
 
-        // ROW 186: BIM
-        const row186 = findRow(186);
-        if (row186) {
-            const row157 = findRow(157);
-            if (row157) {
-                // ⭐ Check if quantity should be editable (override configuration)
-                const row186EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[186] || {};
-                const leftOverrides = row186EditableOverrides.left || {};
-                const isQuantityEditable = leftOverrides.quantity;
-                const isSizeEditable = leftOverrides.size;
-                
-                const headcount = parseFloat(row157.left.size) || 0;
-                const bimQty = headcount / 2;
-                
-                // ⭐ Recalculate quantity based on source (row 157)
-                // Skip recalculation if user is currently editing this field
-                const isEditingThisField = this._lastEditedCell && 
-                    this._lastEditedCell.excelRow === 186 && 
-                    this._lastEditedCell.col === 'left' && 
-                    this._lastEditedCell.field === 'quantity';
-                
-                if (!isQuantityEditable) {
-                    // Always calculate if readonly
-                    row186.left.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
-                    row186.left.quantity = (bimQty > 0 && row186.left.isWholeNumberQuantity) ? Math.round(bimQty).toString() : row186.left.quantityRaw;
-                    row186.left.quantityUserEntered = false;
-                } else if (!isEditingThisField) {
-                    // Recalculate if user is NOT currently editing this field
-                    // This allows manual edits to stay, but recalculates when source (row 157) changes
-                    row186.left.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
-                    row186.left.quantity = (bimQty > 0 && row186.left.isWholeNumberQuantity) ? Math.round(bimQty).toString() : row186.left.quantityRaw;
-                }
-                // If user is editing this field, preserve their input (don't recalculate)
-                
-                row186.left.quantityReadonly = !isQuantityEditable; // If in config, make editable
-                
-                // ⭐ Use calculated quantity value
-                const currentQty = parseFloat(row186.left.quantityRaw) || bimQty;
-
-                // ⭐ Unit price is editable (BIM rate can be changed)
-                const unitPrice = getUnit(row186, 'left');
-                if (currentQty > 0 && unitPrice > 0) {
-                    row186.left.gross = (currentQty * unitPrice).toFixed(2);
-                } else {
-                    row186.left.gross = '';
-                }
-                row186.left.grossReadonly = true;
-
-                const row22 = this.section1Rows.find(r => r.excelRow === 22);
-                const totalHeadcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
-                
-                // ⭐ Recalculate size based on currentQty and totalHeadcount
-                // Skip recalculation if user is currently editing this field
-                const isEditingThisSizeField = this._lastEditedCell && 
-                    this._lastEditedCell.excelRow === 186 && 
-                    this._lastEditedCell.col === 'left' && 
-                    this._lastEditedCell.field === 'size';
-                
-                if (!isSizeEditable) {
-                    // Always calculate if readonly
-                    if (totalHeadcount > 0 && currentQty > 0) {
-                        row186.left.size = (currentQty / totalHeadcount).toFixed(2);
-                    } else {
-                        row186.left.size = '';
-                    }
-                    row186.left.sizeUserEntered = false;
-                } else if (!isEditingThisSizeField) {
-                    // Recalculate if user is NOT currently editing this field
-                    if (totalHeadcount > 0 && currentQty > 0) {
-                        row186.left.size = (currentQty / totalHeadcount).toFixed(2);
-                    } else {
-                        row186.left.size = '';
-                    }
-                }
-                // If user is editing this field, preserve their input (don't recalculate)
-                
-                // ⭐ Check if size should be editable (override configuration)
-                row186.left.sizeReadonly = !isSizeEditable; // If in config, make editable
-                row186.left.sizeClass = row186.left.sizeReadonly ? 'readonly-cell' : ''; // Update class
-            }
+        // 4. ROW 157: HEADCOUNT
+        const row157Idx = findIdx(157);
+        if (row157Idx !== -1) {
+            updateRowSide(row157Idx, 'left', {
+                size: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                quantity: '',
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
-        // ROW 187: FABRICATION QUARTER HOUR PER
-        const row187 = findRow(187);
-        if (row187) {
-            // ⭐ Check if size should be editable (override configuration)
+        // 5. ROW 186: BIM - depends on 157
+        const row186Idx = findIdx(186);
+        if (row186Idx !== -1 && row157Idx !== -1) {
+            const row186 = s3Rows[row186Idx];
+            const row186EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[186] || {};
+            const leftOverrides = row186EditableOverrides.left || {};
+            const isQuantityEditable = leftOverrides.quantity;
+            const isSizeEditable = leftOverrides.size;
+            
+            const headcountVal = parseFloat(s3Rows[row157Idx].left.size) || 0;
+            const bimQty = headcountVal / 2;
+            
+            const isEditingThisField = this._lastEditedCell && 
+                this._lastEditedCell.excelRow === 186 && 
+                this._lastEditedCell.col === 'left' && 
+                this._lastEditedCell.field === 'quantity';
+            
+            let updatedLeft = { ...row186.left };
+            
+            if (!isQuantityEditable) {
+                updatedLeft.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
+                updatedLeft.quantity = (bimQty > 0 && updatedLeft.isWholeNumberQuantity) ? Math.round(bimQty).toString() : updatedLeft.quantityRaw;
+                updatedLeft.quantityUserEntered = false;
+            } else if (!isEditingThisField) {
+                updatedLeft.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
+                updatedLeft.quantity = (bimQty > 0 && updatedLeft.isWholeNumberQuantity) ? Math.round(bimQty).toString() : updatedLeft.quantityRaw;
+            }
+            
+            updatedLeft.quantityReadonly = !isQuantityEditable;
+            const currentQty = parseFloat(updatedLeft.quantityRaw) || bimQty;
+            const unitPrice = getUnit(row186, 'left');
+            updatedLeft.gross = (currentQty > 0 && unitPrice > 0) ? (currentQty * unitPrice).toFixed(2) : '';
+            updatedLeft.grossReadonly = true;
+
+            const isEditingThisSizeField = this._lastEditedCell && 
+                this._lastEditedCell.excelRow === 186 && 
+                this._lastEditedCell.col === 'left' && 
+                this._lastEditedCell.field === 'size';
+            
+            if (!isSizeEditable) {
+                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1).toFixed(2) : '';
+                updatedLeft.sizeUserEntered = false;
+            } else if (!isEditingThisSizeField) {
+                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1).toFixed(2) : '';
+            }
+            
+            updatedLeft.sizeReadonly = !isSizeEditable;
+            updatedLeft.sizeClass = updatedLeft.sizeReadonly ? 'readonly-cell' : '';
+            
+            updateRowSide(row186Idx, 'left', updatedLeft);
+        }
+
+        // 6. ROW 187: FABRICATION QUARTER HOUR PER
+        const row187Idx = findIdx(187);
+        if (row187Idx !== -1) {
+            const row187 = s3Rows[row187Idx];
             const row187EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[187] || {};
             const leftOverrides = row187EditableOverrides.left || {};
             const isSizeEditable = leftOverrides.size;
             
-            // ⭐ Quantity is editable (user can enter fabrication hours)
             const qty = getQty(row187, 'left');
-            // ⭐ Unit price is editable (fabrication rate can be changed)
             const unitPrice = getUnit(row187, 'left');
-
-            if (qty > 0 && unitPrice > 0) {
-                row187.left.gross = (qty * unitPrice).toFixed(2);
-            } else {
-                row187.left.gross = '';
-            }
-            row187.left.grossReadonly = true; // ⭐ Gross is calculated
-
-            const row22 = this.section1Rows.find(r => r.excelRow === 22);
-            const headcount = row22 ? (parseFloat(row22.left.quantity) || 0) : 0;
             
-            // ⭐ Recalculate size based on qty and headcount
-            // Skip recalculation if user is currently editing this field
+            let updatedLeft = { ...row187.left };
+            updatedLeft.gross = (qty > 0 && unitPrice > 0) ? (qty * unitPrice).toFixed(2) : '';
+            updatedLeft.grossReadonly = true;
+
             const isEditingThisSizeField = this._lastEditedCell && 
                 this._lastEditedCell.excelRow === 187 && 
                 this._lastEditedCell.col === 'left' && 
                 this._lastEditedCell.field === 'size';
             
             if (!isSizeEditable) {
-                // Always calculate if readonly
-                if (headcount > 0 && qty > 0) {
-                    row187.left.size = (qty / headcount).toFixed(2);
-                } else {
-                    row187.left.size = '';
-                }
-                row187.left.sizeUserEntered = false;
+                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : '';
+                updatedLeft.sizeUserEntered = false;
             } else if (!isEditingThisSizeField) {
-                // Recalculate if user is NOT currently editing this field
-                if (headcount > 0 && qty > 0) {
-                    row187.left.size = (qty / headcount).toFixed(2);
-                } else {
-                    row187.left.size = '';
-                }
+                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : '';
             }
-            // If user is editing this field, preserve their input (don't recalculate)
             
-            // ⭐ Check if size should be editable (override configuration)
-            row187.left.sizeReadonly = !isSizeEditable; // If in config, make editable
-            row187.left.sizeClass = row187.left.sizeReadonly ? 'readonly-cell' : ''; // Update class
+            updatedLeft.sizeReadonly = !isSizeEditable;
+            updatedLeft.sizeClass = updatedLeft.sizeReadonly ? 'readonly-cell' : '';
+            
+            updateRowSide(row187Idx, 'left', updatedLeft);
         }
 
-        // ROW 189: FIELD,ENG,FAB, TOTAL
-        const row189 = findRow(189);
-        if (row189) {
+        // 7. ROW 189: FIELD,ENG,FAB, TOTAL - depends on 184, 185, 186, 187
+        const row189Idx = findIdx(189);
+        if (row189Idx !== -1) {
             let sum = 0;
             for (let i = 184; i <= 188; i++) {
-                const r = findRow(i);
-                if (r) sum += getGross(r, 'left');
+                const rIdx = findIdx(i);
+                if (rIdx !== -1) sum += getGross(s3Rows[rIdx], 'left');
             }
-            row189.left.gross = sum > 0 ? sum.toFixed(2) : '';
-            row189.left.quantityReadonly = true; // ⭐ ADDED
-            row189.left.unitPriceReadonly = true; // ⭐ ADDED
-            row189.left.grossReadonly = true;
+            updateRowSide(row189Idx, 'left', {
+                gross: sum > 0 ? sum.toFixed(2) : '',
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
-        this.section3Rows = [...s3Rows];
+        // 8. ROW 153: FIELD, ENGR., FAB TOTAL - depends on 189
+        const row153Idx = findIdx(153);
+        if (row153Idx !== -1 && row189Idx !== -1) {
+            const laborTotal = getGross(s3Rows[row189Idx], 'left');
+            updateRowSide(row153Idx, 'right', {
+                gross: laborTotal > 0 ? laborTotal.toFixed(2) : '',
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 9. ROW 133 (LEFT): TOTAL MAT'L SHT #1 & 2
+        const row133Idx = findIdx(133);
+        if (row133Idx !== -1) {
+            const row69 = this.section1Rows.find(r => r.excelRow === 69);
+            const row125 = this.section2Rows.find(r => r.excelRow === 125);
+
+            const row69Total = row69 ? (parseFloat(row69.left.gross) || 0) : 0;
+            const row125Total = row125 ? (parseFloat(row125.left.gross) || 0) : 0;
+
+            updateRowSide(row133Idx, 'left', {
+                gross: (row69Total + row125Total).toFixed(2),
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 10. ROW 155 (LEFT): GRAND TOTAL MATERIAL COST - depends on 133-153 (LEFT)
+        const row155Idx = findIdx(155);
+        if (row155Idx !== -1) {
+            let sum = 0;
+            for (let i = 133; i <= 153; i++) {
+                const rIdx = findIdx(i);
+                if (rIdx !== -1) sum += getGross(s3Rows[rIdx], 'left');
+            }
+            const newGross = sum.toFixed(2);
+            updateRowSide(row155Idx, 'left', {
+                gross: newGross,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+
+            // 11. ROW 133 (RIGHT) - depends on 155 (LEFT)
+            if (row133Idx !== -1) {
+                updateRowSide(row133Idx, 'right', {
+                    gross: newGross,
+                    quantityReadonly: true,
+                    unitPriceReadonly: true,
+                    grossReadonly: true
+                });
+            }
+        }
+
+        // 12. ROW 135 (RIGHT): SALES TAX 10% - depends on 133 (RIGHT)
+        const row135Idx = findIdx(135);
+        if (row135Idx !== -1 && row133Idx !== -1) {
+            const materialTotal = getGross(s3Rows[row133Idx], 'right');
+            const taxRate = getUnit(s3Rows[row135Idx], 'right') || 0;
+            updateRowSide(row135Idx, 'right', {
+                gross: (materialTotal * taxRate).toFixed(2),
+                quantityReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 13. ROW 152 (RIGHT): MATERIAL, PRMT., EQUIP... - depends on 133-150 (RIGHT)
+        const row152Idx = findIdx(152);
+        if (row152Idx !== -1) {
+            let sum = 0;
+            for (let i = 133; i <= 150; i++) {
+                const rIdx = findIdx(i);
+                if (rIdx !== -1) sum += getGross(s3Rows[rIdx], 'right');
+            }
+            updateRowSide(row152Idx, 'right', {
+                gross: sum.toFixed(2),
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 14. ROW 160 (RIGHT): TOTAL DIRECT COST - depends on 152-158 (RIGHT)
+        const row160Idx = findIdx(160);
+        if (row160Idx !== -1) {
+            let sum = 0;
+            for (let i = 152; i <= 158; i++) {
+                const rIdx = findIdx(i);
+                if (rIdx !== -1) sum += getGross(s3Rows[rIdx], 'right');
+            }
+            updateRowSide(row160Idx, 'right', {
+                gross: sum > 0 ? sum.toFixed(2) : '',
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 15. ROW 161 (RIGHT): %OVERHEAD - depends on 160
+        const row161Idx = findIdx(161);
+        if (row161Idx !== -1 && row160Idx !== -1) {
+            const directCost = getGross(s3Rows[row160Idx], 'right');
+            const unitPrice = getUnit(s3Rows[row161Idx], 'right') || 0.15;
+            updateRowSide(row161Idx, 'right', {
+                quantity: directCost > 0 ? directCost.toFixed(2) : '',
+                quantityReadonly: true,
+                gross: directCost > 0 ? (directCost * unitPrice).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 16. ROW 163 (RIGHT): SUBTOTAL - depends on 160, 161
+        const row163Idx = findIdx(163);
+        if (row163Idx !== -1 && row160Idx !== -1 && row161Idx !== -1) {
+            const directCost = getGross(s3Rows[row160Idx], 'right');
+            const overhead = getGross(s3Rows[row161Idx], 'right');
+            updateRowSide(row163Idx, 'right', {
+                gross: (directCost + overhead).toFixed(2),
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 17. ROW 164 (RIGHT): %GAIN - depends on 163
+        const row164Idx = findIdx(164);
+        if (row164Idx !== -1 && row163Idx !== -1) {
+            const subtotal = getGross(s3Rows[row163Idx], 'right');
+            const unitPrice = getUnit(s3Rows[row164Idx], 'right') || 0.15;
+            updateRowSide(row164Idx, 'right', {
+                quantity: subtotal > 0 ? subtotal.toFixed(2) : '',
+                quantityReadonly: true,
+                gross: subtotal > 0 ? (subtotal * unitPrice).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 18. ROW 166 (RIGHT): TOTAL QUOTE PRICE - depends on 163, 164
+        const row166Idx = findIdx(166);
+        if (row166Idx !== -1 && row163Idx !== -1 && row164Idx !== -1) {
+            const subtotal = getGross(s3Rows[row163Idx], 'right');
+            const gain = getGross(s3Rows[row164Idx], 'right');
+            updateRowSide(row166Idx, 'right', {
+                gross: (subtotal + gain).toFixed(2),
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 19. ROW 167 (RIGHT): PRICE MINUS SP... - depends on 166, 144, 145, 150, 151, 152
+        const row167Idx = findIdx(167);
+        if (row167Idx !== -1 && row166Idx !== -1) {
+            const quotePrice = getGross(s3Rows[row166Idx], 'right');
+            const i144 = getGross(s3Rows[findIdx(144)], 'left');
+            const i145 = getGross(s3Rows[findIdx(145)], 'left');
+            const i150 = getGross(s3Rows[findIdx(150)], 'left');
+            const i151 = getGross(s3Rows[findIdx(151)], 'left');
+            const i152 = getGross(s3Rows[findIdx(152)], 'left');
+
+            const result = quotePrice - i144 - i145 - i150 - i151 - i152;
+            updateRowSide(row167Idx, 'right', {
+                gross: result.toFixed(2),
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 20. ROW 168: GROSS MARGIN - depends on 161, 164, 166
+        const row168Idx = findIdx(168);
+        if (row168Idx !== -1 && row161Idx !== -1 && row164Idx !== -1 && row166Idx !== -1) {
+            const overhead = getGross(s3Rows[row161Idx], 'right');
+            const gain = getGross(s3Rows[row164Idx], 'right');
+            const quotePrice = getGross(s3Rows[row166Idx], 'right');
+
+            const newQty = quotePrice > 0 ? ((overhead + gain) / quotePrice).toFixed(4) : '';
+            updateRowSide(row168Idx, 'right', {
+                quantity: newQty,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 21. ROW 169: BOND AMOUNT - depends on 166
+        const row169Idx = findIdx(169);
+        if (row169Idx !== -1 && row166Idx !== -1) {
+            const totalQuote = getGross(s3Rows[row166Idx], 'right');
+            const bondCalc = (totalQuote / 1000) * 1.5;
+            updateRowSide(row169Idx, 'right', {
+                quantity: (bondCalc < 100 ? 100 : bondCalc).toFixed(2),
+                quantityReadonly: true,
+                gross: ((totalQuote / 1000) * 12).toFixed(2),
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
+        }
+
+        // 22. ROW 173: MATERIAL PER HEAD - depends on 155, 151, 144, 152, 145, 150
+        const row173Idx = findIdx(173);
+        if (row173Idx !== -1) {
+            const i155 = getGross(s3Rows[findIdx(155)], 'left');
+            const i144 = getGross(s3Rows[findIdx(144)], 'left');
+            const i145 = getGross(s3Rows[findIdx(145)], 'left');
+            const i150 = getGross(s3Rows[findIdx(150)], 'left');
+            const i151 = getGross(s3Rows[findIdx(151)], 'left');
+            const i152 = getGross(s3Rows[findIdx(152)], 'left');
+
+            const materialCost = i155 - i151 - i144 - i152 - i145 - i150;
+            
+            updateRowSide(row173Idx, 'right', {
+                quantity: materialCost.toFixed(2),
+                quantityReadonly: true,
+                unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                unitPriceReadonly: true,
+                gross: headcountFromS1 > 0 ? (materialCost / headcountFromS1).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 23. ROW 174: DIRECT COST PER HEAD - depends on 160
+        const row174Idx = findIdx(174);
+        if (row174Idx !== -1 && row160Idx !== -1) {
+            const directCost = getGross(s3Rows[row160Idx], 'right');
+            
+            updateRowSide(row174Idx, 'right', {
+                quantity: directCost > 0 ? directCost.toFixed(2) : '',
+                quantityReadonly: true,
+                unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                unitPriceReadonly: true,
+                gross: headcountFromS1 > 0 ? (directCost / headcountFromS1).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 24. ROW 175: BUILDING SQ. FOOTAGE
+        const row175Idx = findIdx(175);
+        if (row175Idx !== -1) {
+            const qty = getQty(s3Rows[row175Idx], 'right');
+            updateRowSide(row175Idx, 'right', {
+                unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                unitPriceReadonly: true,
+                gross: (qty > 0 && headcountFromS1 > 0) ? (qty / headcountFromS1).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 25. ROW 176: SALES COST PER HEAD - depends on 166
+        const row176Idx = findIdx(176);
+        if (row176Idx !== -1 && row166Idx !== -1) {
+            const quotePrice = getGross(s3Rows[row166Idx], 'right');
+            const i144 = getGross(s3Rows[findIdx(144)], 'left');
+            const i145 = getGross(s3Rows[findIdx(145)], 'left');
+            const i150 = getGross(s3Rows[findIdx(150)], 'left');
+            const i151 = getGross(s3Rows[findIdx(151)], 'left');
+            const i152 = getGross(s3Rows[findIdx(152)], 'left');
+
+            const salesCost = quotePrice - i144 - i145 - i150 - i151 - i152;
+            
+            updateRowSide(row176Idx, 'right', {
+                quantity: salesCost.toFixed(2),
+                quantityReadonly: true,
+                unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                unitPriceReadonly: true,
+                gross: headcountFromS1 > 0 ? (salesCost / headcountFromS1).toFixed(2) : '',
+                grossReadonly: true
+            });
+        }
+
+        // 26. ROW 178: COST PER SQUARE FOOT - depends on 167, 175
+        const row178Idx = findIdx(178);
+        if (row178Idx !== -1 && row167Idx !== -1 && row175Idx !== -1) {
+            const netPrice = getGross(s3Rows[row167Idx], 'right');
+            const sqFootage = getQty(s3Rows[row175Idx], 'right');
+
+            updateRowSide(row178Idx, 'right', {
+                gross: sqFootage > 0 ? (netPrice / sqFootage).toFixed(2) : '',
+                grossReadonly: true,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                quantityClass: 'readonly-cell',
+                unitPriceClass: 'col-unit readonly-cell'
+            });
+        }
+
+        if (sectionChanged) {
+            this.section3Rows = s3Rows;
+        }
     }
 
     calculateSectionTotal(rows) {
