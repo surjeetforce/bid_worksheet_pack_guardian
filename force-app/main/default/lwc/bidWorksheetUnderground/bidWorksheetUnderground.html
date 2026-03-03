@@ -23,7 +23,7 @@
             </template>
             <template if:false={isLoading}>
                 <!-- Main estimate table with two columns -->
-                <div class="estimate-table-wrapper">
+                <div class={sheetWrapperClass}>
                     <table class="estimate-table">
                         <thead>
                             <tr>
@@ -64,7 +64,8 @@
                                                 data-col="left"
                                                 data-field="description"
                                                 oninput={handleCellChange}
-                                                readonly={row.left.descriptionReadonly} />
+                                                onblur={handleBlur}
+                                                readonly={row.left.descriptionReadonly} disabled={isReadOnly} />
                                         </template>
                                     </td>
                                     <td>
@@ -76,36 +77,47 @@
                                             data-col="left"
                                             data-field="size"
                                             oninput={handleCellChange}
-                                            readonly={row.left.sizeReadonly} />
+                                            onblur={handleBlur}
+                                            readonly={row.left.sizeReadonly} disabled={isReadOnly} />
                                     </td>
                                     <td>
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             value={row.left.amount}
                                             class="cell-input amount-input"
                                             data-row={row.id}
                                             data-col="left"
                                             data-field="amount"
                                             oninput={handleCellChange}
-                                            step="0.01" />
+                                            onblur={handleBlur}
+                                            disabled={isReadOnly} />
                                     </td>
                                     <td class="col-unit">
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             value={row.left.unitPrice}
                                             class="cell-input unit-input"
                                             data-row={row.id}
                                             data-col="left"
                                             data-field="unitPrice"
                                             oninput={handleCellChange}
-                                            step="0.01"
-                                            readonly={row.left.unitPriceReadonly} />
+                                            onblur={handleBlur}
+                                            readonly={row.left.unitPriceReadonly}
+                                            disabled={isReadOnly} />
                                     </td>
                                     <td class="col-gross">
                                         <template if:true={row.left.gross}>
-                                            <lightning-formatted-number value={row.left.gross} format-style="currency"
-                                                currency-code="USD">
-                                            </lightning-formatted-number>
+                                            <template if:true={row.left.isCurrencyGross}>
+                                                <lightning-formatted-number value={row.left.gross} format-style="currency"
+                                                    currency-code="USD">
+                                                </lightning-formatted-number>
+                                            </template>
+                                            <template if:false={row.left.isCurrencyGross}>
+                                                <lightning-formatted-number value={row.left.gross} format-style="decimal">
+                                                </lightning-formatted-number>
+                                            </template>
                                         </template>
                                     </td>
 
@@ -127,7 +139,8 @@
                                                 data-col="right"
                                                 data-field="description"
                                                 oninput={handleCellChange}
-                                                readonly={row.right.descriptionReadonly} />
+                                                onblur={handleBlur}
+                                                readonly={row.right.descriptionReadonly} disabled={isReadOnly} />
                                         </template>
                                     </td>
                                     <td>
@@ -139,36 +152,47 @@
                                             data-col="right"
                                             data-field="size"
                                             oninput={handleCellChange}
-                                            readonly={row.right.sizeReadonly} />
+                                            onblur={handleBlur}
+                                            readonly={row.right.sizeReadonly} disabled={isReadOnly} />
                                     </td>
                                     <td>
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             value={row.right.amount}
                                             class="cell-input amount-input"
                                             data-row={row.id}
                                             data-col="right"
                                             data-field="amount"
                                             oninput={handleCellChange}
-                                            step="0.01" />
+                                            onblur={handleBlur}
+                                            disabled={isReadOnly} />
                                     </td>
                                     <td class="col-unit">
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             value={row.right.unitPrice}
                                             class="cell-input unit-input"
                                             data-row={row.id}
                                             data-col="right"
                                             data-field="unitPrice"
                                             oninput={handleCellChange}
-                                            step="0.01"
-                                            readonly={row.right.unitPriceReadonly} />
+                                            onblur={handleBlur}
+                                            readonly={row.right.unitPriceReadonly}
+                                            disabled={isReadOnly} />
                                     </td>
                                     <td class="col-gross">
                                         <template if:true={row.right.gross}>
-                                            <lightning-formatted-number value={row.right.gross} format-style="currency"
-                                                currency-code="USD">
-                                            </lightning-formatted-number>
+                                            <template if:true={row.right.isCurrencyGross}>
+                                                <lightning-formatted-number value={row.right.gross} format-style="currency"
+                                                    currency-code="USD">
+                                                </lightning-formatted-number>
+                                            </template>
+                                            <template if:false={row.right.isCurrencyGross}>
+                                                <lightning-formatted-number value={row.right.gross} format-style="decimal">
+                                                </lightning-formatted-number>
+                                            </template>
                                         </template>
                                     </td>
                                 </tr>

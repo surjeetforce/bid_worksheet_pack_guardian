@@ -56,6 +56,6 @@
     </values>
     <values>
         <field>Unit_Price_Field_Type__c</field>
-        <value xsi:type="xsd:string">Currency</value>
+        <value xsi:type="xsd:string">Percentage</value>
     </values>
 </CustomMetadata>

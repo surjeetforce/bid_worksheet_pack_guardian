@@ -2,7 +2,7 @@
     <div class="modal-shell">
         <header class="slds-modal__header custom-header">
             <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
-                <div class="slds-text-heading_medium">ITM Bid Worksheet</div>
+                <div class="slds-text-heading_medium">ITM BID WORKSHEET</div>
                 <div class="slds-grid slds-grid_align-end slds-gutters_small">
                     <div class="slds-col slds-text-align_right slds-m-top_medium">
                         <template if:true={autoSaveStatus}>
@@ -58,12 +58,20 @@
                             <div class={containerClass}>
                                 <div class="content-padding">
                                     <div class="sheet-header">
-                                        <h2 class="sheet-title">Labor Factor</h2>
-                                        <span class="sheet-date">{currentDate}</span>
+                                        <h2 class="sheet-title">ITM BID WORKSHEET SUMMARY</h2>
+                                        <div class="header-actions">
+                                            <span class="sheet-date">{currentDate}</span>
+                                            <lightning-button label="Download CSV" icon-name="utility:download" variant="brand-outline" 
+                                                onclick={handleDownloadCSVFull} class="slds-m-left_medium">
+                                            </lightning-button>
+                                        </div>
                                     </div>
 
                                     <!-- Section 1: LABOR FACTOR -->
                                     <div class="itm-section">
+                                        <div class="section-header-row">
+                                            <h2 class="section-title">Labor Factor</h2>
+                                        </div>
                                         <table class="itm-table">
                                             <thead>
                                                 <tr class="header-row">
@@ -89,40 +97,48 @@
                                                     <tr key={row.rowNumber} class="data-row">
                                                         <!-- FIRE ALARM (Left) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.left.description}>
-                                                                {row.left.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.left.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="left"
+                                                                data-section="labor"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.left.quantity}
                                             data-row={row.rowNumber}
                                             data-column="left"
                                             data-section="labor"
+                                            data-field="quantity"
+                                            disabled={isReadOnly}
                                             oninput={handleQuantityChange}
-                                            step="1"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input hours-input"
                                             value={row.left.hours}
                                             data-row={row.rowNumber}
                                             data-column="left"
                                             data-section="labor"
+                                            data-field="hours"
+                                            disabled={isReadOnly}
                                             oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.left.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number">
+                                                                <lightning-formatted-number value={row.left.total} minimum-fraction-digits="2" maximum-fraction-digits="2"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
 
                                                         <!-- Spacer -->
@@ -130,40 +146,48 @@
 
                                                         <!-- FIRE SPRINKLER (Right) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.right.description}>
-                                                                {row.right.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.right.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="right"
+                                                                data-section="labor"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.right.quantity}
                                             data-row={row.rowNumber}
                                             data-column="right"
                                             data-section="labor"
+                                            data-field="quantity"
+                                            disabled={isReadOnly}
                                             oninput={handleQuantityChange}
-                                            step="1"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input hours-input"
                                             value={row.right.hours}
                                             data-row={row.rowNumber}
                                             data-column="right"
                                             data-section="labor"
+                                            data-field="hours"
+                                            disabled={isReadOnly}
                                             oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.right.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number">
+                                                                <lightning-formatted-number value={row.right.total} minimum-fraction-digits="2" maximum-fraction-digits="2"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 </template>
@@ -171,10 +195,14 @@
                                                 <!-- Total Labor Hours Row -->
                                                 <tr class="total-row">
                                                     <td class="total-label" colspan="3">Total Alarm Labor Hours</td>
-                                                    <td class="total-value">{totalAlarmLaborHours}</td>
+                                                    <td class="total-value">
+                                                        <lightning-formatted-number value={totalAlarmLaborHours} minimum-fraction-digits="2" maximum-fraction-digits="2"></lightning-formatted-number>
+                                                    </td>
                                                     <td class="spacer-cell"></td>
                                                     <td class="total-label" colspan="3">Total Sprinkler Labor Hours</td>
-                                                    <td class="total-value">{totalSprinklerLaborHours}</td>
+                                                    <td class="total-value">
+                                                        <lightning-formatted-number value={totalSprinklerLaborHours} minimum-fraction-digits="2" maximum-fraction-digits="2"></lightning-formatted-number>
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -182,7 +210,9 @@
 
                                     <!-- Section 2: EQUIPMENT FACTOR -->
                                     <div class="itm-section">
-                                        <h2 class="section-title">Equipment Factor</h2>
+                                        <div class="section-header-row">
+                                            <h2 class="section-title">Equipment Factor</h2>
+                                        </div>
                                         <table class="itm-table">
                                             <thead>
                                                 <tr class="header-row">
@@ -208,40 +238,50 @@
                                                     <tr key={row.rowNumber} class="data-row">
                                                         <!-- FIRE ALARM (Left) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.left.description}>
-                                                                {row.left.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.left.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="left"
+                                                                data-section="equipment"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.left.quantity}
                                             data-row={row.rowNumber}
                                             data-column="left"
                                             data-section="equipment"
+                                            data-field="quantity"
+                                            disabled={isReadOnly}
                                             oninput={handleQuantityChange}
-                                            step="1"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="input-cell">
-                                                            <input
-                                            type="number"
-                                            class="itm-input hours-input"
-                                            value={row.left.hours}
-                                            data-row={row.rowNumber}
-                                            data-column="left"
-                                            data-section="equipment"
-                                            oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                                            <div class="itm-input-wrapper">
+                                                                <input
+                                                                    type="text"
+                                                                    inputmode="decimal"
+                                                                    class="itm-input hours-input"
+                                                                    value={row.left.hours}
+                                                                    data-row={row.rowNumber}
+                                                                    data-column="left"
+                                                                    data-section="equipment"
+                                                                    data-field="hours"
+                                                                    disabled={isReadOnly}
+                                                                    oninput={handleHoursChange}
+                                                                    onblur={handleBlur} />
+                                                            </div>
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.left.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number currency-cell">
+                                                                <lightning-formatted-number value={row.left.total} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
 
                                                         <!-- Spacer -->
@@ -249,40 +289,50 @@
 
                                                         <!-- FIRE SPRINKLER (Right) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.right.description}>
-                                                                {row.right.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.right.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="right"
+                                                                data-section="equipment"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.right.quantity}
                                             data-row={row.rowNumber}
                                             data-column="right"
                                             data-section="equipment"
+                                            data-field="quantity"
+                                            disabled={isReadOnly}
                                             oninput={handleQuantityChange}
-                                            step="1"
-                                            min="0" />
+                                            onblur={handleBlur} />
                                                         </td>
                                                         <td class="input-cell">
-                                                            <input
-                                            type="number"
-                                            class="itm-input hours-input"
-                                            value={row.right.hours}
-                                            data-row={row.rowNumber}
-                                            data-column="right"
-                                            data-section="equipment"
-                                            oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                                            <div class="itm-input-wrapper">
+                                                                <input
+                                                                    type="text"
+                                                                    inputmode="decimal"
+                                                                    class="itm-input hours-input"
+                                                                    value={row.right.hours}
+                                                                    data-row={row.rowNumber}
+                                                                    data-column="right"
+                                                                    data-section="equipment"
+                                                                    data-field="hours"
+                                                                    disabled={isReadOnly}
+                                                                    oninput={handleHoursChange}
+                                                                    onblur={handleBlur} />
+                                                            </div>
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.right.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number currency-cell">
+                                                                <lightning-formatted-number value={row.right.total} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 </template>
@@ -290,10 +340,14 @@
                                                 <!-- Total Equipment Cost Row -->
                                                 <tr class="total-row">
                                                     <td class="total-label" colspan="3">Total Cost</td>
-                                                    <td class="total-value">{totalAlarmEquipmentCost}</td>
+                                                    <td class="total-value">
+                                                        <lightning-formatted-number value={totalAlarmEquipmentCost} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                     <td class="spacer-cell"></td>
                                                     <td class="total-label" colspan="3">Total Cost</td>
-                                                    <td class="total-value">{totalSprinklerEquipmentCost}</td>
+                                                    <td class="total-value">
+                                                        <lightning-formatted-number value={totalSprinklerEquipmentCost} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -301,7 +355,9 @@
 
                                     <!-- Section 3: RATES -->
                                     <div class="itm-section">
-                                        <h2 class="section-title">Rates</h2>
+                                        <div class="section-header-row">
+                                            <h2 class="section-title">Rates</h2>
+                                        </div>
                                         <table class="itm-table">
                                             <thead>
                                                 <tr class="header-row">
@@ -327,41 +383,50 @@
                                                     <tr key={row.rowNumber} class="data-row">
                                                         <!-- FIRE ALARM (Left) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.left.description}>
-                                                                {row.left.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.left.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="left"
+                                                                data-section="rates"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.left.quantity}
                                             data-row={row.rowNumber}
                                             data-column="left"
                                             data-section="rates"
+                                            data-field="quantity"
                                             oninput={handleQuantityChange}
-                                            step="0.01"
-                                            min="0"
-                                            disabled={row.isLaborMixRate} />
+                                            onblur={handleBlur}
+                                            disabled={row.ratesQtyDisabled} />
                                                         </td>
                                                         <td class="input-cell">
-                                                            <input
-                                            type="number"
-                                            class="itm-input hours-input"
-                                            value={row.left.hours}
-                                            data-row={row.rowNumber}
-                                            data-column="left"
-                                            data-section="rates"
-                                            oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                                            <div class="itm-input-wrapper">
+                                                                <input
+                                                                    type="text"
+                                                                    inputmode="decimal"
+                                                                    class="itm-input hours-input"
+                                                                    value={row.left.hours}
+                                                                    data-row={row.rowNumber}
+                                                                    data-column="left"
+                                                                    data-section="rates"
+                                                                    data-field="hours"
+                                                                    disabled={isReadOnly}
+                                                                    oninput={handleHoursChange}
+                                                                    onblur={handleBlur} />
+                                                            </div>
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.left.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number currency-cell">
+                                                                <lightning-formatted-number value={row.left.total} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
 
                                                         <!-- Spacer -->
@@ -369,41 +434,50 @@
 
                                                         <!-- FIRE SPRINKLER (Right) -->
                                                         <td class="desc-cell">
-                                                            <div class="itm-desc-text" title={row.right.description}>
-                                                                {row.right.description}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                class="itm-input desc-input"
+                                                                value={row.right.description}
+                                                                data-row={row.rowNumber}
+                                                                data-column="right"
+                                                                data-section="rates"
+                                                                disabled={isReadOnly}
+                                                                oninput={handleDescriptionChange} />
                                                         </td>
                                                         <td class="input-cell">
                                                             <input
-                                            type="number"
+                                            type="text"
+                                            inputmode="decimal"
                                             class="itm-input qty-input"
                                             value={row.right.quantity}
                                             data-row={row.rowNumber}
                                             data-column="right"
                                             data-section="rates"
+                                            data-field="quantity"
                                             oninput={handleQuantityChange}
-                                            step="0.01"
-                                            min="0"
-                                            disabled={row.isLaborMixRate} />
+                                            onblur={handleBlur}
+                                            disabled={row.ratesQtyDisabled} />
                                                         </td>
                                                         <td class="input-cell">
-                                                            <input
-                                            type="number"
-                                            class="itm-input hours-input"
-                                            value={row.right.hours}
-                                            data-row={row.rowNumber}
-                                            data-column="right"
-                                            data-section="rates"
-                                            oninput={handleHoursChange}
-                                            step="0.01"
-                                            min="0" />
+                                                            <div class="itm-input-wrapper">
+                                                                <input
+                                                                    type="text"
+                                                                    inputmode="decimal"
+                                                                    class="itm-input hours-input"
+                                                                    value={row.right.hours}
+                                                                    data-row={row.rowNumber}
+                                                                    data-column="right"
+                                                                    data-section="rates"
+                                                                    data-field="hours"
+                                                                    disabled={isReadOnly}
+                                                                    oninput={handleHoursChange}
+                                                                    onblur={handleBlur} />
+                                                            </div>
                                                         </td>
                                                         <td class="total-cell">
-                                                            <input
-                                            type="text"
-                                            class="itm-input"
-                                            value={row.right.total}
-                                            readonly />
+                                                            <div class="itm-readonly-number currency-cell">
+                                                                <lightning-formatted-number value={row.right.total} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 </template>
@@ -413,7 +487,9 @@
 
                                     <!-- Section 4: SUMMARY -->
                                     <div class="itm-section">
-                                        <h2 class="section-title">Summary</h2>
+                                        <div class="section-header-row">
+                                            <h2 class="section-title">Summary</h2>
+                                        </div>
                                         <table class="itm-table summary-table">
                                             <thead>
                                                 <tr class="header-row">
@@ -437,10 +513,14 @@
                                                 <!-- Subtotal Row -->
                                                 <tr class="subtotal-row">
                                                     <td class="summary-label" colspan="3">SUBTOTAL</td>
-                                                    <td class="summary-value">{alarmSubtotal}</td>
+                                                    <td class="summary-value">
+                                                        <lightning-formatted-number value={alarmSubtotal} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                     <td class="spacer-cell"></td>
                                                     <td class="summary-label" colspan="3">SUBTOTAL</td>
-                                                    <td class="summary-value">{sprinklerSubtotal}</td>
+                                                    <td class="summary-value">
+                                                        <lightning-formatted-number value={sprinklerSubtotal} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                 </tr>
 
                                                 <!-- Gain Percent Row -->
@@ -448,37 +528,41 @@
                                                     <td class="summary-label" colspan="2">% GAIN</td>
                                                     <td class="input-cell" colspan="2">
                                                         <input
-                                        type="number"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="itm-input gain-input"
                                         value={alarmGainPercent}
                                         data-column="left"
+                                        disabled={isReadOnly}
                                         oninput={handleGainPercentChange}
-                                        step="0.01"
-                                        min="0"
-                                        max="1" />
+                                        onblur={handleBlur} />
                                                     </td>
                                                     <td class="spacer-cell"></td>
                                                     <td class="summary-label" colspan="2">% GAIN</td>
                                                     <td class="input-cell" colspan="2">
                                                         <input
-                                        type="number"
+                                        type="text"
+                                        inputmode="decimal"
                                         class="itm-input gain-input"
                                         value={sprinklerGainPercent}
                                         data-column="right"
+                                        disabled={isReadOnly}
                                         oninput={handleGainPercentChange}
-                                        step="0.01"
-                                        min="0"
-                                        max="1" />
+                                        onblur={handleBlur} />
                                                     </td>
                                                 </tr>
 
                                                 <!-- Total Quote Price Row -->
                                                 <tr class="total-quote-row">
                                                     <td class="quote-label" colspan="3">TOTAL QUOTE PRICE</td>
-                                                    <td class="quote-value">{alarmTotalQuote}</td>
+                                                    <td class="quote-value">
+                                                        <lightning-formatted-number value={alarmTotalQuote} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                     <td class="spacer-cell"></td>
                                                     <td class="quote-label" colspan="3">TOTAL QUOTE PRICE</td>
-                                                    <td class="quote-value">{sprinklerTotalQuote}</td>
+                                                    <td class="quote-value">
+                                                        <lightning-formatted-number value={sprinklerTotalQuote} format-style="currency" currency-code="USD"></lightning-formatted-number>
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -492,9 +576,38 @@
         </div>
 
         <footer class="slds-modal__footer custom-footer">
-            <lightning-button variant="brand" label="Save ITM Worksheet" onclick={handleSave} icon-name="utility:save"
-                disabled={isSaving}>
-            </lightning-button>
+            <template if:true={showMarkAsFinalCheckbox}>
+                <div class="slds-form-element slds-m-bottom_small">
+                    <div class="slds-form-element__control">
+                        <div class="slds-checkbox">
+                            <input type="checkbox" id="mark-as-final" class="mark-as-final-checkbox" />
+                            <label class="slds-checkbox__label" for="mark-as-final">
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">
+                                    <strong>Mark this version as FINAL</strong> (No further versions can be created)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <template if:true={showSaveButton}>
+                <lightning-button 
+                    variant="brand" 
+                    label="Save ITM Worksheet" 
+                    onclick={handleSave} 
+                    icon-name="utility:save"
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+            
+            <template if:true={hasFinalVersion}>
+                <div class="slds-text-color_error slds-text-align_center">
+                    <lightning-icon icon-name="utility:lock" size="x-small"></lightning-icon>
+                    This worksheet has been marked as FINAL. No further changes can be saved.
+                </div>
+            </template>
         </footer>
     </div>
 </template>

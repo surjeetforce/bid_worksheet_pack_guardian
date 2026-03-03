@@ -72,6 +72,25 @@
     background-color: #fafaf9;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.download-button-small {
+    --slds-c-button-spacing-block-start: 0.25rem;
+    --slds-c-button-spacing-block-end: 0.25rem;
+}
+
 .sheet-title {
     font-size: 16px;
     font-weight: 700;
@@ -203,7 +222,7 @@
     padding: 0.5rem;
     font-size: 0.875rem;
     font-family: inherit;
-    background: transparent;
+    background-color: #ffffff;
     box-sizing: border-box;
 }
 
@@ -233,6 +252,11 @@
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+
+.desc-input {
+    font-weight: 500;
+    text-align: left;
 }
 
 /* Quantity inputs */
@@ -353,10 +377,10 @@
     }
 }
 
-/* Hover effects */
-.itm-table tbody tr:hover {
+/* Hover effects removed to prevent confusion with readonly cells */
+/* .itm-table tbody tr:hover {
     background-color: #f9f9f9;
-}
+} */
 
 /* Readonly field styling */
 input[readonly].itm-input {
@@ -365,4 +389,63 @@ input[readonly].itm-input {
 
 input[readonly].itm-input:hover {
     background-color: #f3f3f3;
+}
+
+.itm-readonly-number {
+    padding: 0.5rem;
+    text-align: right;
+    background-color: #f3f3f3;
+    font-weight: 600;
+    min-height: 100%;
+}
+
+.currency-cell {
+    color: #000;
+}
+
+.itm-input-wrapper {
+    padding: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.itm-lightning-input {
+    --slds-c-input-spacing-block-start: 0;
+    --slds-c-input-spacing-block-end: 0;
+    --slds-c-input-spacing-inline-start: 0.5rem;
+    --slds-c-input-spacing-inline-end: 0.5rem;
+    --slds-c-input-color-border: transparent;
+    --slds-c-input-radius-border: 0;
+    --slds-c-input-shadow: none;
+    width: 100%;
+}
+
+.itm-lightning-input :host {
+    width: 100%;
+}
+
+.itm-lightning-input ::part(input) {
+    border: none !important;
+    background-color: #ffffff !important;
+    text-align: center;
+    font-size: 0.875rem;
+    height: 32px !important;
+    padding: 0 0.5rem !important;
+    box-shadow: none !important;
+}
+
+.itm-lightning-input ::part(input):focus {
+    outline: 2px solid #1589ee !important;
+    outline-offset: -2px !important;
+    background-color: #fef8e8 !important;
+}
+
+.itm-lightning-input ::part(container) {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.itm-lightning-input ::part(help-text) {
+    display: none;
 }

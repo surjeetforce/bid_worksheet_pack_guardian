@@ -20,7 +20,7 @@
     </values>
     <values>
         <field>Gross_Field_Type__c</field>
-        <value xsi:nil="true"/>
+        <value xsi:type="xsd:string">Number</value>
     </values>
     <values>
         <field>Is_Comment_Row__c</field>

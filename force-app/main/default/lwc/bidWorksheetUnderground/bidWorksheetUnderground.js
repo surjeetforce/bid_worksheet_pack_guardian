@@ -9,7 +9,8 @@ import autoSaveSheet from '@salesforce/apex/BidWorksheetUndergroundController.au
 export default class BidWorksheetUnderground extends LightningElement {
     @api recordId; // Opportunity Id
     @api sheetNumber = 1;
-    
+    @api isReadOnly = false; // Set by parent when final version exists (Underground tab only)
+
     _versionIdToLoad = null;
     _lastLoadedVersionId = null; // Track last loaded version to avoid reloading same version
     _isLoadingData = false; // Flag to prevent autosave during data loading
@@ -27,6 +28,7 @@ export default class BidWorksheetUnderground extends LightningElement {
         
         this._versionIdToLoad = value;
         
+        
         // Always reload if:
         // 1. lastLoaded is null (first time load) - ALWAYS reload on first load
         // 2. OR value actually changed (normalized comparison)
@@ -41,6 +43,7 @@ export default class BidWorksheetUnderground extends LightningElement {
         
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
+            
             
             // Only load if tableRows are initialized (metadata loaded)
             if (this.tableRows && this.tableRows.length > 0) {
@@ -70,9 +73,12 @@ export default class BidWorksheetUnderground extends LightningElement {
         return today.toLocaleDateString('en-US');
     }
 
+    get sheetWrapperClass() {
+        return 'estimate-table-wrapper' + (this.isReadOnly ? ' readonly-sheet' : '');
+    }
+
     connectedCallback() {
         if (!this.recordId) {
-            console.error('❌ No recordId provided to Underground Sheet 1');
             this.showToast('Error', 'Record ID is required', 'error');
             this.isLoading = false;
             return;
@@ -86,6 +92,7 @@ export default class BidWorksheetUnderground extends LightningElement {
     @wire(getSheet1Items)
     wiredItems({ error, data }) {
         if (data) {
+
             // ⭐ Set flag FIRST to prevent autosave during initialization
             this._isLoadingData = true;
 
@@ -94,6 +101,7 @@ export default class BidWorksheetUnderground extends LightningElement {
             // Reload saved data (if any) now that base rows are ready
             // Use setTimeout to ensure DOM is updated and tableRows are fully initialized
             setTimeout(() => {
+                
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
                 const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
@@ -114,7 +122,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             }, 1500); // Give enough time for loadSavedSheet to complete
 
         } else if (error) {
-            console.error('❌ Sheet #1: Error loading metadata:', error);
             this.showToast('Error', 'Failed to load sheet configuration: ' + (error.body ? error.body.message : error.message), 'error');
             this.isLoading = false;
             this._isLoadingData = false; // Clear flag on error
@@ -129,6 +136,15 @@ export default class BidWorksheetUnderground extends LightningElement {
             this.createRowFromMetadata(item, index)
         );
         this.nextRowId = this.tableRows.length;
+
+        // ⭐ ADDED: Debug logging to verify row mapping
+
+        // Show a few sample rows
+        const samples = [0, Math.floor(this.tableRows.length / 2), this.tableRows.length - 1];
+        samples.forEach(idx => {
+            if (this.tableRows[idx]) {
+            }
+        });
     }
 
     /**
@@ -137,43 +153,81 @@ export default class BidWorksheetUnderground extends LightningElement {
     createRowFromMetadata(data, id) {
         const rowId = id !== null ? id : this.nextRowId++;
 
-        // Determine if fields should be readonly based on description
-        const leftHasDescription = !!(data.left.description && data.left.description.trim());
-        const rightHasDescription = !!(data.right.description && data.right.description.trim());
-
         return {
             id: rowId,
             excelRow: data.excelRow || null,  // ✅ From Apex wrapper
             left: {
                 description: data.left.description || '',
-                descriptionReadonly: !!data.left.description,
-                size: data.left.size || '',  // ✅ FIXED: Was missing
-                sizeReadonly: true,
-                amount: '',  // Empty - user enters
-                amountReadonly: !leftHasDescription,
-                unitPrice: data.left.defaultUnitPrice || '',  // ✅ Pre-populate from defaultUnitPrice
-                unitPriceReadonly: false,  // ✅ ALL unit prices are editable
-                defaultUnitPrice: data.left.defaultUnitPrice || null,  // ✅ STORE for reference
+                descriptionReadonly: false, // ⭐ Make editable
+                size: data.left.size || '',
+                sizeReadonly: false, // ⭐ Make editable
+                amount: '',
+                amountReadonly: false, // ⭐ Make editable
+                unitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.left.unitPriceFieldType === 'Percentage' && data.left.defaultUnitPrice) {
+                        const numValue = parseFloat(data.left.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.left.defaultUnitPrice || '';
+                })(),
+                unitPriceReadonly: false,
+                defaultUnitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.left.unitPriceFieldType === 'Percentage' && data.left.defaultUnitPrice) {
+                        const numValue = parseFloat(data.left.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.left.defaultUnitPrice || null;
+                })(),
                 gross: '',
                 unitPriceFieldType: data.left.unitPriceFieldType || 'Currency',
                 grossFieldType: data.left.grossFieldType || 'Currency',
+                isCurrencyGross: (data.left.grossFieldType || 'Currency') === 'Currency',
                 isTotalRow: data.left.isTotalRow || false,
                 isCommentRow: false,
                 descriptionClass: data.left.isIndent ? 'description-cell indent' : 'description-cell'
             },
             right: {
                 description: data.right.description || '',
-                descriptionReadonly: !!data.right.description,
-                size: data.right.size || '',  // ✅ FIXED: Was missing
-                sizeReadonly: true,
-                amount: '',  // Empty - user enters
-                amountReadonly: !rightHasDescription,
-                unitPrice: data.right.defaultUnitPrice || '',  // ✅ Pre-populate from defaultUnitPrice
-                unitPriceReadonly: false,  // ✅ ALL unit prices are editable
-                defaultUnitPrice: data.right.defaultUnitPrice || null,  // ✅ STORE for reference
+                descriptionReadonly: false, // ⭐ Make editable
+                size: data.right.size || '',
+                sizeReadonly: false, // ⭐ Make editable
+                amount: '',
+                amountReadonly: false, // ⭐ Make editable
+                unitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.right.unitPriceFieldType === 'Percentage' && data.right.defaultUnitPrice) {
+                        const numValue = parseFloat(data.right.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.right.defaultUnitPrice || '';
+                })(),
+                unitPriceReadonly: false,
+                defaultUnitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.right.unitPriceFieldType === 'Percentage' && data.right.defaultUnitPrice) {
+                        const numValue = parseFloat(data.right.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.right.defaultUnitPrice || null;
+                })(),
                 gross: '',
                 unitPriceFieldType: data.right.unitPriceFieldType || 'Currency',
                 grossFieldType: data.right.grossFieldType || 'Currency',
+                isCurrencyGross: (data.right.grossFieldType || 'Currency') === 'Currency',
                 isTotalRow: false,
                 isCommentRow: data.right.isCommentRow || false,
                 descriptionClass: data.right.isIndent ? 'description-cell indent' : 'description-cell'
@@ -181,9 +235,10 @@ export default class BidWorksheetUnderground extends LightningElement {
         };
     }
 
-    calculateGross(amount, unitPrice) {
+    calculateGross(amount, unitPrice, isPercentage = false) {
         const amountNum = parseFloat(amount) || 0;
-        const priceNum = parseFloat(unitPrice) || 0;
+        let priceNum = parseFloat(unitPrice) || 0;
+        // Percentage fields use 0-1 scale (0.1 = 10%), no division by 100
         const gross = amountNum * priceNum;
         return gross > 0 ? gross.toFixed(2) : '';
     }
@@ -194,45 +249,47 @@ export default class BidWorksheetUnderground extends LightningElement {
         const field = event.target.dataset.field;
         const value = event.target.value;
 
-        // ✅ VALIDATION
-        if (field === 'amount' || field === 'unitPrice') {
-            const numValue = parseFloat(value);
+        // ✅ VALIDATION - Moved to handleBlur for smoother typing, 
+        // but we still want to block some characters if needed.
+        // For now, we'll allow all typing and clean up on blur.
 
-            // Block negative values
-            if (numValue < 0) {
-                this.showToast('Warning', 'Negative values not allowed', 'warning');
-                event.target.value = ''; // Clear the field
-                return;
-            }
-        }
 
         const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
         if (rowIndex !== -1) {
-            const updatedRow = { ...this.tableRows[rowIndex] };
-            updatedRow[col] = { ...updatedRow[col], [field]: value };
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && this.tableRows[rowIndex][col].unitPriceFieldType === 'Percentage') {
+                const numValue = parseFloat(value);
+                if (value.trim() !== '' && (isNaN(numValue) || numValue < 0 || numValue > 1)) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0
+                    this.tableRows[rowIndex][col].unitPrice = '0';
+                    event.target.value = '0';
+                    this.tableRows = [...this.tableRows]; // Force re-render
+                    return;
+                }
+            }
+            
+            // Update the model directly without re-assigning the whole array
+            // This prevents full re-render and cursor jumping
+            this.tableRows[rowIndex][col][field] = value;
 
             // When AMOUNT changes:
             if (field === 'amount') {
                 // If amount is cleared, clear gross (but keep unitPrice as it's pre-populated)
                 if (!value || value.trim() === '') {
-                    updatedRow[col].gross = '';
+                    this.tableRows[rowIndex][col].gross = '';
                 }
             }
 
             // Calculate GROSS $ whenever amount or unitPrice changes
             if (field === 'amount' || field === 'unitPrice') {
-                updatedRow[col].gross = this.calculateGross(
-                    updatedRow[col].amount,
-                    updatedRow[col].unitPrice
+                const isPercentage = this.tableRows[rowIndex][col].unitPriceFieldType === 'Percentage';
+                this.tableRows[rowIndex][col].gross = this.calculateGross(
+                    this.tableRows[rowIndex][col].amount,
+                    this.tableRows[rowIndex][col].unitPrice,
+                    isPercentage
                 );
             }
-
-            // Update the array
-            this.tableRows = [
-                ...this.tableRows.slice(0, rowIndex),
-                updatedRow,
-                ...this.tableRows.slice(rowIndex + 1)
-            ];
 
             // Recalculate subtotal
             if (this.calculationTimeout) {
@@ -247,6 +304,76 @@ export default class BidWorksheetUnderground extends LightningElement {
                 this.notifyParentForAutoSave();
             }
         }
+    }
+
+    /**
+     * Handle blur to perform final normalization and rounding
+     */
+    handleBlur(event) {
+        const rowId = parseInt(event.target.dataset.row);
+        const col = event.target.dataset.col;
+        const field = event.target.dataset.field;
+        let value = event.target.value;
+
+        const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
+        if (rowIndex === -1) return;
+
+        // If the field is empty, keep it empty instead of forcing a 0
+        if (!value || value.trim() === '') {
+            this.tableRows[rowIndex][col][field] = '';
+            this.tableRows = [...this.tableRows];
+            this.calculateSubTotal();
+            return;
+        }
+
+        if (field === 'amount' || field === 'unitPrice') {
+            let numValue = parseFloat(value) || 0;
+            const isPercentage = this.tableRows[rowIndex][col].unitPriceFieldType === 'Percentage';
+            
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && isPercentage) {
+                if (numValue < 0 || numValue > 1) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0
+                    value = '0';
+                    this.tableRows[rowIndex][col][field] = value;
+                    this.tableRows = [...this.tableRows]; // Force re-render
+                    this.calculateSubTotal(); // Recalculate
+                    return;
+                }
+            }
+            
+            // Block negative values
+            if (numValue < 0) {
+                this.showToast('Warning', 'Negative values not allowed', 'warning');
+                value = '0';
+            } else {
+                // Round percentage fields to 5 decimals, others to 2 decimals
+                const precision = (field === 'unitPrice' && isPercentage) ? 5 : 2;
+                value = Math.round((numValue + Number.EPSILON) * Math.pow(10, precision)) / Math.pow(10, precision);
+                // Format unitPrice based on type: percentage with 5 decimals, currency with 2 decimals
+                if (field === 'unitPrice') {
+                    value = isPercentage ? value.toFixed(5) : value.toFixed(2);
+                } else if (value === 0 && field === 'amount') {
+                    value = '';
+                } else {
+                    value = value.toString();
+                }
+            }
+            
+            this.tableRows[rowIndex][col][field] = value;
+            
+            // Recalculate gross with normalized values
+            this.tableRows[rowIndex][col].gross = this.calculateGross(
+                this.tableRows[rowIndex][col].amount,
+                this.tableRows[rowIndex][col].unitPrice,
+                isPercentage
+            );
+        }
+
+        // Force a re-render on blur to ensure the input field shows the normalized value
+        this.tableRows = [...this.tableRows];
+        this.calculateSubTotal();
     }
 
     notifyParentForAutoSave() {
@@ -323,7 +450,6 @@ export default class BidWorksheetUnderground extends LightningElement {
 
                 resolve(sheetData);
             } catch (error) {
-                console.error('❌ Sheet #1 saveSheet error:', error);
                 reject(error);
             }
         });
@@ -397,16 +523,14 @@ export default class BidWorksheetUnderground extends LightningElement {
 
             const savedState = JSON.parse(jsonString);
 
+            if (savedState.sheet1) {
+            }
+
             this.applyLoadedData(savedState);
 
         } catch (error) {
             // Don't show error toast if file doesn't exist (first time use)
             const errorMessage = error?.body?.message || error?.message || String(error);
-            console.error('❌ [LOAD Sheet #1] Error details:', {
-                message: errorMessage,
-                stack: error?.stack,
-                body: error?.body
-            });
 
             if (errorMessage.includes('not found') || errorMessage.includes('No ContentVersion') || errorMessage.includes('List has no rows')) {
                 return;
@@ -468,8 +592,19 @@ export default class BidWorksheetUnderground extends LightningElement {
                                 ? savedRow.left.size : existingRow.left.size,
                             amount: (savedRow.left?.amount !== undefined && savedRow.left?.amount !== null)
                                 ? savedRow.left.amount : existingRow.left.amount,
-                            unitPrice: (savedRow.left?.unitPrice !== undefined && savedRow.left?.unitPrice !== null)
-                                ? savedRow.left.unitPrice : existingRow.left.unitPrice,
+                            unitPrice: (() => {
+                                const savedValue = (savedRow.left?.unitPrice !== undefined && savedRow.left?.unitPrice !== null)
+                                    ? savedRow.left.unitPrice : existingRow.left.unitPrice;
+                                if (!savedValue || savedValue === '') return savedValue;
+                                const numValue = parseFloat(savedValue);
+                                if (isNaN(numValue)) return savedValue;
+                                // Format percentage unitPrice to 5 decimals, currency to 2 decimals
+                                if (existingRow.left.unitPriceFieldType === 'Percentage') {
+                                    return numValue.toFixed(5);
+                                } else {
+                                    return numValue.toFixed(2);
+                                }
+                            })(),
                             gross: (savedRow.left?.gross !== undefined && savedRow.left?.gross !== null)
                                 ? savedRow.left.gross : existingRow.left.gross
                         },
@@ -481,8 +616,19 @@ export default class BidWorksheetUnderground extends LightningElement {
                                 ? savedRow.right.size : existingRow.right.size,
                             amount: (savedRow.right?.amount !== undefined && savedRow.right?.amount !== null)
                                 ? savedRow.right.amount : existingRow.right.amount,
-                            unitPrice: (savedRow.right?.unitPrice !== undefined && savedRow.right?.unitPrice !== null)
-                                ? savedRow.right.unitPrice : existingRow.right.unitPrice,
+                            unitPrice: (() => {
+                                const savedValue = (savedRow.right?.unitPrice !== undefined && savedRow.right?.unitPrice !== null)
+                                    ? savedRow.right.unitPrice : existingRow.right.unitPrice;
+                                if (!savedValue || savedValue === '') return savedValue;
+                                const numValue = parseFloat(savedValue);
+                                if (isNaN(numValue)) return savedValue;
+                                // Format percentage unitPrice to 5 decimals, currency to 2 decimals
+                                if (existingRow.right.unitPriceFieldType === 'Percentage') {
+                                    return numValue.toFixed(5);
+                                } else {
+                                    return numValue.toFixed(2);
+                                }
+                            })(),
                             gross: (savedRow.right?.gross !== undefined && savedRow.right?.gross !== null)
                                 ? savedRow.right.gross : existingRow.right.gross
                         }
@@ -491,6 +637,7 @@ export default class BidWorksheetUnderground extends LightningElement {
 
                 this.tableRows = mergedRows;
                 this.nextRowId = this.tableRows.length;
+
 
                 // Force reactivity update
                 this.tableRows = [...this.tableRows];
@@ -509,7 +656,6 @@ export default class BidWorksheetUnderground extends LightningElement {
             }, 50);
 
         } catch (err) {
-            console.error('❌ [APPLY Sheet #1] Error applying loaded data:', err);
             this.logError('Apply loaded data failed', err);
             this._isLoadingData = false; // Clear flag on error
             this.showToast('Error', 'Failed to apply loaded sheet data: ' + err.message, 'error');
@@ -537,7 +683,6 @@ export default class BidWorksheetUnderground extends LightningElement {
 
     logError(context, error) {
         const safeMsg = error && error.body && error.body.message ? error.body.message : error && error.message ? error.message : String(error);
-        console.error(`❌ ${context}:`, safeMsg, error);
     }
 
     showToast(title, message, variant) {

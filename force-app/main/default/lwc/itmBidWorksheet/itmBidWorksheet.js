@@ -9,6 +9,7 @@ import getVersionHistory from '@salesforce/apex/ITMBidWorksheetController.getVer
 import loadVersionById from '@salesforce/apex/ITMBidWorksheetController.loadVersionById';
 import loadLatestITMWorksheet from '@salesforce/apex/ITMBidWorksheetController.loadLatestITMWorksheet';
 import autoSaveITMWorksheet from '@salesforce/apex/ITMBidWorksheetController.autoSaveITMWorksheet';
+import getFinalVersionStatus from '@salesforce/apex/ITMBidWorksheetController.getFinalVersionStatus';
 
 export default class ItmBidWorksheet extends LightningElement {
     @api recordId; // Opportunity ID - automatically set by Quick Action
@@ -24,17 +25,17 @@ export default class ItmBidWorksheet extends LightningElement {
     @track ratesRows = [];
 
     // Totals
-    @track totalAlarmLaborHours = '0.00';
-    @track totalSprinklerLaborHours = '0.00';
-    @track totalAlarmEquipmentCost = '0.00';
-    @track totalSprinklerEquipmentCost = '0.00';
+    @track totalAlarmLaborHours = 0;
+    @track totalSprinklerLaborHours = 0;
+    @track totalAlarmEquipmentCost = 0;
+    @track totalSprinklerEquipmentCost = 0;
 
-    @track alarmSubtotal = '0.00';
-    @track sprinklerSubtotal = '0.00';
-    @track alarmGainPercent = 0.2; // 20% default
-    @track sprinklerGainPercent = 0.1; // 10% default
-    @track alarmTotalQuote = '0.00';
-    @track sprinklerTotalQuote = '0.00';
+    @track alarmSubtotal = 0;
+    @track sprinklerSubtotal = 0;
+    @track alarmGainPercent = 20; // 20% default (whole number)
+    @track sprinklerGainPercent = 10; // 10% default (whole number)
+    @track alarmTotalQuote = 0;
+    @track sprinklerTotalQuote = 0;
 
     // Version control state
     @track versionList = [];
@@ -50,6 +51,12 @@ export default class ItmBidWorksheet extends LightningElement {
     _isUserEditing = false;
     _editingTimeout = null;
 
+    // Final version state
+    @track hasFinalVersion = false;
+    @track finalVersionId = null;
+    @track isReadOnly = false;
+    @track showMarkAsFinalCheckbox = false;
+
     // Wire to load metadata
     @wire(getITMItems)
     wiredItems({ error, data }) {
@@ -58,7 +65,6 @@ export default class ItmBidWorksheet extends LightningElement {
             // Wait for recordId before loading saved data
             this.waitForRecordIdAndLoad();
         } else if (error) {
-            console.error('❌ Error loading metadata:', error);
             this.showToast('Error', 'Failed to load ITM items: ' + error.body.message, 'error');
             this.isLoading = false;
         }
@@ -100,6 +106,7 @@ export default class ItmBidWorksheet extends LightningElement {
      * Initialize rows from metadata
      */
     initializeRows(data) {
+
         // Group items by row number
         const laborByRow = this.groupByRow(data.laborFactor);
         const equipmentByRow = this.groupByRow(data.equipmentFactor);
@@ -109,6 +116,7 @@ export default class ItmBidWorksheet extends LightningElement {
         this.laborFactorRows = this.createRowPairs(laborByRow);
         this.equipmentFactorRows = this.createRowPairs(equipmentByRow);
         this.ratesRows = this.createRowPairs(ratesByRow);
+
     }
 
     /**
@@ -138,22 +146,24 @@ export default class ItmBidWorksheet extends LightningElement {
         Object.keys(groupedItems).sort((a, b) => a - b).forEach(rowNum => {
             const pair = groupedItems[rowNum];
             const rowNumber = parseInt(rowNum);
+            const isLaborMixRate = rowNumber === 41;
             rows.push({
                 rowNumber: rowNumber,
-                isLaborMixRate: rowNumber === 41, // Used for disabling quantity input
+                isLaborMixRate: isLaborMixRate, // Used for disabling quantity input
+                ratesQtyDisabled: isLaborMixRate, // Updated in updateReadOnlyState when isReadOnly changes
                 left: {
                     id: pair.left?.id || '',
                     description: pair.left?.description || '',
                     quantity: 0,
                     hours: pair.left?.defaultHours || 0,
-                    total: '0.00'
+                    total: 0
                 },
                 right: {
                     id: pair.right?.id || '',
                     description: pair.right?.description || '',
                     quantity: 0,
                     hours: pair.right?.defaultHours || 0,
-                    total: '0.00'
+                    total: 0
                 }
             });
         });
@@ -168,10 +178,14 @@ export default class ItmBidWorksheet extends LightningElement {
         if (!targetId) return;
 
         try {
+            // Check final version status first
+            const finalStatus = await getFinalVersionStatus({ opportunityId: targetId });
+            this.hasFinalVersion = finalStatus.hasFinalVersion;
+            this.finalVersionId = finalStatus.finalVersionId;
+            
             await this.loadNextVersionNumber();
             await this.loadVersionList();
         } catch (error) {
-            console.error('Error loading version data:', error);
         }
     }
 
@@ -182,7 +196,6 @@ export default class ItmBidWorksheet extends LightningElement {
         try {
             this.nextVersionNumber = await getNextVersionNumber({ opportunityId: targetId });
         } catch (error) {
-            console.error('Error loading next version number:', error);
             this.nextVersionNumber = 1;
         }
     }
@@ -199,33 +212,54 @@ export default class ItmBidWorksheet extends LightningElement {
             const versions = await getVersionHistory({ opportunityId: targetId });
             
             const savedVersions = versions.map(v => ({
-                label: `Version ${v.versionNumber} - ${this.formatDate(v.createdDate)} - ${v.createdBy}`,
+                label: `Version ${v.versionNumber}${v.isFinal ? ' - FINAL' : ''} - ${this.formatDate(v.createdDate)} - ${v.createdBy}`,
                 value: v.versionId,
                 versionNumber: v.versionNumber,
-                isDraft: false
+                isDraft: false,
+                isFinal: v.isFinal
             }));
             
-            const draftOption = {
-                label: `Draft - Version ${this.nextVersionNumber}`,
-                value: 'draft',
-                versionNumber: this.nextVersionNumber,
-                isDraft: true
-            };
+            // Only show draft option if no final version exists
+            const versionListOptions = [];
             
-            this.versionList = [draftOption, ...savedVersions];
-            
-            if (!this.selectedVersionId || this.selectedVersionId === 'draft') {
-                this.selectedVersionId = 'draft';
+            if (!this.hasFinalVersion) {
+                versionListOptions.push({
+                    label: `Draft - Version ${this.nextVersionNumber}`,
+                    value: 'draft',
+                    versionNumber: this.nextVersionNumber,
+                    isDraft: true,
+                    isFinal: false
+                });
             }
+            
+            versionListOptions.push(...savedVersions);
+            this.versionList = versionListOptions;
+            
+            // Set selected version
+            if (!this.selectedVersionId || this.selectedVersionId === 'draft') {
+                this.selectedVersionId = this.hasFinalVersion ? this.finalVersionId : 'draft';
+            }
+            
+            // Update read-only state based on final version
+            this.updateReadOnlyState();
+            
         } catch (error) {
-            console.error('Error loading version list:', error);
-            this.versionList = [{
-                label: `Draft - Version ${this.nextVersionNumber || 1}`,
-                value: 'draft',
-                versionNumber: this.nextVersionNumber || 1,
-                isDraft: true
-            }];
-            this.selectedVersionId = 'draft';
+            
+            if (!this.hasFinalVersion) {
+                this.versionList = [{
+                    label: `Draft - Version ${this.nextVersionNumber || 1}`,
+                    value: 'draft',
+                    versionNumber: this.nextVersionNumber || 1,
+                    isDraft: true,
+                    isFinal: false
+                }];
+                this.selectedVersionId = 'draft';
+            } else {
+                this.versionList = [];
+                this.selectedVersionId = this.finalVersionId;
+            }
+            
+            this.updateReadOnlyState();
         }
     }
 
@@ -239,6 +273,23 @@ export default class ItmBidWorksheet extends LightningElement {
             hour: 'numeric',
             minute: '2-digit'
         });
+    }
+
+    /**
+     * Update read-only state based on final version status
+     */
+    updateReadOnlyState() {
+        // Worksheet is read-only if a final version exists
+        this.isReadOnly = this.hasFinalVersion;
+        
+        // Show "Mark as Final" checkbox only when viewing draft and no final version exists
+        this.showMarkAsFinalCheckbox = !this.hasFinalVersion && this.selectedVersionId === 'draft';
+        
+        // Rates section: Hours (quantity) column is disabled when read-only OR Labor Mix Rate row
+        this.ratesRows.forEach(row => {
+            row.ratesQtyDisabled = this.isReadOnly || row.isLaborMixRate;
+        });
+        this.ratesRows = [...this.ratesRows];
     }
 
     /**
@@ -304,17 +355,26 @@ export default class ItmBidWorksheet extends LightningElement {
 
                 // Restore gain percentages
                 if (data.alarmGainPercent !== undefined) {
-                    this.alarmGainPercent = data.alarmGainPercent;
+                    const numValue = parseFloat(data.alarmGainPercent);
+                    if (!isNaN(numValue)) {
+                        this.alarmGainPercent = numValue.toFixed(5);
+                    } else {
+                        this.alarmGainPercent = '0';
+                    }
                 }
                 if (data.sprinklerGainPercent !== undefined) {
-                    this.sprinklerGainPercent = data.sprinklerGainPercent;
+                    const numValue = parseFloat(data.sprinklerGainPercent);
+                    if (!isNaN(numValue)) {
+                        this.sprinklerGainPercent = numValue.toFixed(5);
+                    } else {
+                        this.sprinklerGainPercent = '0';
+                    }
                 }
 
             } else {
             }
 
         } catch (error) {
-            console.error('❌ Error loading saved data:', error);
         } finally {
             this.isLoading = false;
             this.calculateAllTotals();
@@ -334,7 +394,6 @@ export default class ItmBidWorksheet extends LightningElement {
             const decoder = new TextDecoder('utf-8');
             return decoder.decode(bytes);
         } catch (err) {
-            console.error('Decode data failed:', err);
             throw err;
         }
     }
@@ -361,6 +420,10 @@ export default class ItmBidWorksheet extends LightningElement {
         }
         
         this.selectedVersionId = newVersionId;
+        this._isUserEditing = false;
+        
+        // Update read-only state
+        this.updateReadOnlyState();
         
         if (this.selectedVersionId !== 'draft') {
             this.isLoadingVersion = true;
@@ -373,6 +436,7 @@ export default class ItmBidWorksheet extends LightningElement {
     }
 
     handleCellChange(event) {
+        
         if (this._isInitializing || this.isLoadingVersion || this._isLoadingData) {
             return;
         }
@@ -395,6 +459,11 @@ export default class ItmBidWorksheet extends LightningElement {
     }
 
     async performAutoSave() {
+        // Don't auto-save if final version exists
+        if (this.hasFinalVersion) {
+            return;
+        }
+        
         const targetId = this.recordId || this.fallbackRecordId;
         
         if (!targetId) {
@@ -412,35 +481,13 @@ export default class ItmBidWorksheet extends LightningElement {
                 base64Data: base64Payload
             });
 
-            // ⭐ Update Opportunity fields during autosave
-            const fieldData = {
-                Total_Alarm_Labor_Hours__c: parseFloat(this.totalAlarmLaborHours) || 0,
-                Total_Sprinkler_Labor_Hours__c: parseFloat(this.totalSprinklerLaborHours) || 0,
-                Total_Alarm_Cost__c: parseFloat(this.totalAlarmEquipmentCost) || 0,
-                Total_Sprinkler_Cost__c: parseFloat(this.totalSprinklerEquipmentCost) || 0,
-                TOTAL_Alarm_QUOTE_PRICE__c: parseFloat(this.alarmTotalQuote) || 0,
-                TOTAL_Sprinkler_QUOTE_PRICE__c: parseFloat(this.sprinklerTotalQuote) || 0
-            };
-
-            try {
-                await updateOpportunityFields({
-                    opportunityId: targetId,
-                    fieldDataJson: JSON.stringify(fieldData)
-                });
-            } catch (fieldError) {
-                // Don't fail autosave if field update fails, just log it
-                console.warn('⚠️ [ITM] Failed to update Opportunity fields during autosave:', fieldError);
-            }
-
             this.autoSaveStatus = 'saved';
 
             setTimeout(() => {
                 this.autoSaveStatus = '';
             }, 2000);
         } catch (error) {
-            console.error('❌ [ITM] Error during auto-save:', error);
             const errorMessage = error?.body?.message || error?.message || String(error);
-            console.error('❌ [ITM] Error details:', errorMessage);
             this.autoSaveStatus = '';
         }
     }
@@ -479,7 +526,6 @@ export default class ItmBidWorksheet extends LightningElement {
             const json = JSON.stringify(data);
             return btoa(unescape(encodeURIComponent(json)));
         } catch (err) {
-            console.error('Encode data failed', err);
             throw err;
         }
     }
@@ -496,6 +542,10 @@ export default class ItmBidWorksheet extends LightningElement {
         return this.versionList.length === 0;
     }
 
+    get showSaveButton() {
+        return !this.hasFinalVersion;
+    }
+
     /**
      * Restore row data from saved state
      */
@@ -506,16 +556,18 @@ export default class ItmBidWorksheet extends LightningElement {
 
                 // Restore left column
                 if (savedRow.left) {
-                    row.left.quantity = savedRow.left.quantity || 0;
-                    row.left.hours = savedRow.left.hours || row.left.hours;
-                    row.left.total = savedRow.left.total || '0.00';
+                    if (savedRow.left.description !== undefined) row.left.description = savedRow.left.description;
+                    row.left.quantity = savedRow.left.quantity; // Preserve as string if it was saved as one
+                    row.left.hours = savedRow.left.hours;       // Preserve as string if it was saved as one
+                    row.left.total = Math.round(( (parseFloat(savedRow.left.total) || 0) + Number.EPSILON) * 100) / 100;
                 }
 
                 // Restore right column
                 if (savedRow.right) {
-                    row.right.quantity = savedRow.right.quantity || 0;
-                    row.right.hours = savedRow.right.hours || row.right.hours;
-                    row.right.total = savedRow.right.total || '0.00';
+                    if (savedRow.right.description !== undefined) row.right.description = savedRow.right.description;
+                    row.right.quantity = savedRow.right.quantity; // Preserve as string if it was saved as one
+                    row.right.hours = savedRow.right.hours;       // Preserve as string if it was saved as one
+                    row.right.total = Math.round(( (parseFloat(savedRow.right.total) || 0) + Number.EPSILON) * 100) / 100;
                 }
             }
         });
@@ -531,6 +583,21 @@ export default class ItmBidWorksheet extends LightningElement {
     }
 
     /**
+     * Handle description input change
+     */
+    handleDescriptionChange(event) {
+        this.handleCellChange(event);
+        
+        const rowNumber = parseInt(event.target.dataset.row);
+        const column = event.target.dataset.column;
+        const section = event.target.dataset.section;
+        const value = event.target.value;
+
+
+        this.updateRowValue(section, rowNumber, column, 'description', value);
+    }
+
+    /**
      * Handle quantity input change
      */
     handleQuantityChange(event) {
@@ -539,7 +606,7 @@ export default class ItmBidWorksheet extends LightningElement {
         const rowNumber = parseInt(event.target.dataset.row);
         const column = event.target.dataset.column;
         const section = event.target.dataset.section;
-        const value = parseFloat(event.target.value) || 0;
+        const value = event.target.value; // Store as string to preserve decimal point while typing
 
         this.updateRowValue(section, rowNumber, column, 'quantity', value);
         this.calculateAllTotals();
@@ -554,9 +621,48 @@ export default class ItmBidWorksheet extends LightningElement {
         const rowNumber = parseInt(event.target.dataset.row);
         const column = event.target.dataset.column;
         const section = event.target.dataset.section;
-        const value = parseFloat(event.target.value) || 0;
+        const value = event.target.value; // Store as string to preserve decimal point while typing
 
         this.updateRowValue(section, rowNumber, column, 'hours', value);
+        this.calculateAllTotals();
+    }
+
+    /**
+     * Handle blur to perform final rounding
+     */
+    handleBlur(event) {
+        const rowNumber = parseInt(event.target.dataset.row);
+        const column = event.target.dataset.column;
+        const section = event.target.dataset.section;
+        const field = event.target.dataset.field || (event.target.classList.contains('qty-input') ? 'quantity' : 'hours');
+        const rawValue = parseFloat(event.target.value) || 0;
+        const roundedValue = Math.round((rawValue + Number.EPSILON) * 100) / 100;
+
+        if (section && rowNumber && column) {
+            this.updateRowValue(section, rowNumber, column, field, roundedValue);
+        } else if (event.target.classList.contains('gain-input')) {
+            // Percentage in 0-1 scale (0.1 = 10%, 0.15 = 15%)
+            // Validate: value must be between 0 and 1
+            if (rawValue < 0 || rawValue > 1) {
+                this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                // Reset to 0
+                event.target.value = '0';
+                if (column === 'left') {
+                    this.alarmGainPercent = 0;
+                } else {
+                    this.sprinklerGainPercent = 0;
+                }
+                return;
+            }
+            // Round to 5 decimal places for percentage values
+            const percentValue = Math.round((rawValue + Number.EPSILON) * 100000) / 100000;
+            if (column === 'left') {
+                this.alarmGainPercent = percentValue;
+            } else {
+                this.sprinklerGainPercent = percentValue;
+            }
+        }
+        
         this.calculateAllTotals();
     }
 
@@ -576,9 +682,15 @@ export default class ItmBidWorksheet extends LightningElement {
         const row = rows.find(r => r.rowNumber === rowNumber);
         if (row) {
             row[column][field] = value;
-            // Calculate row total (2 decimal places)
-            const total = row[column].quantity * row[column].hours;
-            row[column].total = total > 0 ? total.toFixed(2) : '0.00';
+            
+            // Only recalculate total if quantity or hours changed
+            if (field === 'quantity' || field === 'hours') {
+                const q = Number(row[column].quantity) || 0;
+                const h = Number(row[column].hours) || 0;
+                const total = q * h;
+                // Store as rounded number, but we'll use toFixed(2) for display in HTML where needed
+                row[column].total = Math.round((total + Number.EPSILON) * 100) / 100;
+            }
         }
     }
 
@@ -589,7 +701,7 @@ export default class ItmBidWorksheet extends LightningElement {
         this.handleCellChange(event);
         
         const column = event.target.dataset.column;
-        const value = parseFloat(event.target.value) || 0;
+        const value = event.target.value; // Store as string to preserve decimal point while typing
 
         if (column === 'left') {
             this.alarmGainPercent = value;
@@ -604,22 +716,28 @@ export default class ItmBidWorksheet extends LightningElement {
      * Calculate all totals
      */
     calculateAllTotals() {
+
         // Section 1: Labor Factor totals
-        this.totalAlarmLaborHours = this.sumColumn(this.laborFactorRows, 'left').toFixed(2);
-        this.totalSprinklerLaborHours = this.sumColumn(this.laborFactorRows, 'right').toFixed(2);
+        this.totalAlarmLaborHours = this.sumColumn(this.laborFactorRows, 'left');
+        this.totalSprinklerLaborHours = this.sumColumn(this.laborFactorRows, 'right');
 
         // Section 2: Equipment Factor totals
-        this.totalAlarmEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'left').toFixed(2);
-        this.totalSprinklerEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'right').toFixed(2);
+        this.totalAlarmEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'left');
+        this.totalSprinklerEquipmentCost = this.sumColumn(this.equipmentFactorRows, 'right');
 
         // Section 3: Rates - Auto-populate Labor Mix Rate quantities
         if (this.ratesRows.length > 0) {
             // First row (41) is Labor Mix Rate - should auto-populate from labor hours
-            this.ratesRows[0].left.quantity = parseFloat(this.totalAlarmLaborHours);
-            this.ratesRows[0].left.total = (this.ratesRows[0].left.quantity * this.ratesRows[0].left.hours).toFixed(2);
+            // Ensure we use a clean number for the mix rate row quantity
+            const aHours = Number(this.totalAlarmLaborHours) || 0;
+            this.ratesRows[0].left.quantity = aHours.toFixed(2);
+            const alarmRateTotal = Number(this.ratesRows[0].left.quantity) * (Number(this.ratesRows[0].left.hours) || 0);
+            this.ratesRows[0].left.total = Math.round((alarmRateTotal + Number.EPSILON) * 100) / 100;
 
-            this.ratesRows[0].right.quantity = parseFloat(this.totalSprinklerLaborHours);
-            this.ratesRows[0].right.total = (this.ratesRows[0].right.quantity * this.ratesRows[0].right.hours).toFixed(2);
+            const sHours = Number(this.totalSprinklerLaborHours) || 0;
+            this.ratesRows[0].right.quantity = sHours.toFixed(2);
+            const sprinklerRateTotal = Number(this.ratesRows[0].right.quantity) * (Number(this.ratesRows[0].right.hours) || 0);
+            this.ratesRows[0].right.total = Math.round((sprinklerRateTotal + Number.EPSILON) * 100) / 100;
         }
 
         // Calculate rates section totals
@@ -627,22 +745,31 @@ export default class ItmBidWorksheet extends LightningElement {
         const sprinklerRatesTotal = this.sumColumn(this.ratesRows, 'right');
 
         // Subtotal = Equipment + Rates
-        this.alarmSubtotal = (parseFloat(this.totalAlarmEquipmentCost) + alarmRatesTotal).toFixed(2);
-        this.sprinklerSubtotal = (parseFloat(this.totalSprinklerEquipmentCost) + sprinklerRatesTotal).toFixed(2);
+        const aSub = Number(this.totalAlarmEquipmentCost) + alarmRatesTotal;
+        this.alarmSubtotal = Math.round((aSub + Number.EPSILON) * 100) / 100;
+        
+        const sSub = Number(this.totalSprinklerEquipmentCost) + sprinklerRatesTotal;
+        this.sprinklerSubtotal = Math.round((sSub + Number.EPSILON) * 100) / 100;
 
         // Total Quote = Subtotal * (1 + Gain%)
-        this.alarmTotalQuote = (parseFloat(this.alarmSubtotal) * (1 + this.alarmGainPercent)).toFixed(2);
-        this.sprinklerTotalQuote = (parseFloat(this.sprinklerSubtotal) * (1 + this.sprinklerGainPercent)).toFixed(2);
+        // Gain percentage in 0-1 scale (0.15 = 15%)
+        const aQuote = Number(this.alarmSubtotal) * (1 + (Number(this.alarmGainPercent) || 0));
+        this.alarmTotalQuote = Math.round((aQuote + Number.EPSILON) * 100) / 100;
+        
+        const sQuote = Number(this.sprinklerSubtotal) * (1 + (Number(this.sprinklerGainPercent) || 0));
+        this.sprinklerTotalQuote = Math.round((sQuote + Number.EPSILON) * 100) / 100;
     }
 
     /**
      * Sum column helper
      */
     sumColumn(rows, column) {
-        return rows.reduce((sum, row) => {
-            const total = parseFloat(row[column].total) || 0;
-            return sum + total;
-        }, 0);
+        let sum = 0;
+        rows.forEach(row => {
+            const val = parseFloat(row[column].total) || 0;
+            sum += val;
+        });
+        return Number(Math.round((sum + Number.EPSILON) * 100) / 100);
     }
 
     /**
@@ -673,13 +800,25 @@ export default class ItmBidWorksheet extends LightningElement {
     async handleSave() {
         const targetId = this.recordId || this.fallbackRecordId;
 
+        // Check if final version exists
+        if (this.hasFinalVersion) {
+            this.showToast('Error', 'Cannot save: A final version already exists for this worksheet.', 'error');
+            return;
+        }
+
         this.isSaving = true;
 
         try {
+
+            // Get mark as final checkbox value
+            const markAsFinalCheckbox = this.template.querySelector('.mark-as-final-checkbox');
+            const markAsFinal = markAsFinalCheckbox ? markAsFinalCheckbox.checked : false;
+
             // Prepare data to save
             const worksheetData = {
                 worksheetType: 'ITM',
                 version: '1.0',
+                isFinal: markAsFinal,
                 savedDate: new Date().toISOString(),
                 opportunityId: targetId,
                 laborFactorRows: this.laborFactorRows,
@@ -703,17 +842,28 @@ export default class ItmBidWorksheet extends LightningElement {
             const jsonString = JSON.stringify(worksheetData);
             const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
 
-            // Save to Salesforce
+            // Save to Salesforce with markAsFinal flag
             await saveITMWorksheet({
                 opportunityId: targetId,
-                base64Data: base64Data
+                base64Data: base64Data,
+                markAsFinal: markAsFinal
             });
+
+
+            // If marked as final, update state
+            if (markAsFinal) {
+                this.hasFinalVersion = true;
+                this.isReadOnly = true;
+                this.showMarkAsFinalCheckbox = false;
+            }
 
             // ⭐ Refresh version data AFTER save (so nextVersionNumber is updated)
             await this.loadVersionData();
             
-            // Set draft as selected after save
-            this.selectedVersionId = 'draft';
+            // Set draft as selected after save (if not final)
+            if (!markAsFinal) {
+                this.selectedVersionId = 'draft';
+            }
 
             // Prepare Opportunity field updates
             const fieldData = {
@@ -731,10 +881,9 @@ export default class ItmBidWorksheet extends LightningElement {
                 fieldDataJson: JSON.stringify(fieldData)
             });
 
-            this.showToast('Success', 'ITM Bid Worksheet saved successfully!', 'success');
+            this.showToast('Success', markAsFinal ? 'ITM Bid Worksheet saved and marked as FINAL!' : 'ITM Bid Worksheet saved successfully!', 'success');
 
         } catch (error) {
-            console.error('❌ Error saving worksheet:', error);
             this.showToast('Error', 'Failed to save worksheet: ' + error.body.message, 'error');
         } finally {
             this.isSaving = false;
@@ -758,5 +907,131 @@ export default class ItmBidWorksheet extends LightningElement {
      */
     get currentDate() {
         return new Date().toLocaleDateString('en-US');
+    }
+
+    /**
+     * Handle Download CSV for full worksheet
+     */
+    handleDownloadCSVFull() {
+        const lines = [];
+        const dateStr = new Date().toISOString().split('T')[0];
+        
+        lines.push('ITM BID WORKSHEET FULL EXPORT');
+        lines.push(`DATE,${this.currentDate}`);
+        lines.push('');
+
+        lines.push('LABOR FACTOR');
+        lines.push(this.convertToCSVContent(this.laborFactorRows, 'QTY,HOURS,TOTAL HOURS', 'labor'));
+        lines.push('');
+
+        lines.push('EQUIPMENT FACTOR');
+        lines.push(this.convertToCSVContent(this.equipmentFactorRows, 'QTY,COST,TOTAL COST', 'equipment'));
+        lines.push('');
+
+        lines.push('RATES');
+        lines.push(this.convertToCSVContent(this.ratesRows, 'HOURS,RATE,TOTAL', 'rates'));
+        lines.push('');
+
+        lines.push('SUMMARY');
+        lines.push(this.convertToCSVSummary());
+
+        this.downloadCSVFile(lines.join('\n'), `ITM_Worksheet_Full_${dateStr}.csv`);
+    }
+
+    downloadCSV(title, rows, colHeaders) {
+        const csvContent = this.convertToCSVContent(rows, colHeaders);
+        const dateStr = new Date().toISOString().split('T')[0];
+        this.downloadCSVFile(csvContent, `ITM_Worksheet_${title}_${dateStr}.csv`);
+    }
+
+    convertToCSVContent(rows, colHeaders, sectionType) {
+        const headers = [`FIRE ALARM,,,,,,FIRE SPRINKLER`, `DESCRIPTION,${colHeaders},,DESCRIPTION,${colHeaders}`];
+        const lines = [headers[0], headers[1]];
+
+        rows.forEach(row => {
+            const rowValues = [];
+            // Left
+            rowValues.push(this.formatCSVValue(row.left.description));
+            rowValues.push(row.left.quantity);
+            rowValues.push(row.left.hours);
+            rowValues.push(row.left.total);
+            // Spacer
+            rowValues.push('');
+            // Right
+            rowValues.push(this.formatCSVValue(row.right.description));
+            rowValues.push(row.right.quantity);
+            rowValues.push(row.right.hours);
+            rowValues.push(row.right.total);
+            
+            lines.push(rowValues.join(','));
+        });
+
+        // Add total rows based on section type
+        if (sectionType === 'labor') {
+            const totalRow = [];
+            totalRow.push('Total Alarm Labor Hours');
+            totalRow.push('');
+            totalRow.push('');
+            totalRow.push(this.totalAlarmLaborHours);
+            totalRow.push('');
+            totalRow.push('Total Sprinkler Labor Hours');
+            totalRow.push('');
+            totalRow.push('');
+            totalRow.push(this.totalSprinklerLaborHours);
+            lines.push(totalRow.join(','));
+        } else if (sectionType === 'equipment') {
+            const totalRow = [];
+            totalRow.push('Total Cost');
+            totalRow.push('');
+            totalRow.push('');
+            totalRow.push(this.totalAlarmEquipmentCost);
+            totalRow.push('');
+            totalRow.push('Total Cost');
+            totalRow.push('');
+            totalRow.push('');
+            totalRow.push(this.totalSprinklerEquipmentCost);
+            lines.push(totalRow.join(','));
+        }
+
+        return lines.join('\n');
+    }
+
+    convertToCSVSummary() {
+        const lines = [];
+        lines.push('FIRE ALARM,,,FIRE SPRINKLER');
+        lines.push(`SUBTOTAL,${this.alarmSubtotal},,SUBTOTAL,${this.sprinklerSubtotal}`);
+        lines.push(`GAIN %,${this.alarmGainPercent}%,,GAIN %,${this.sprinklerGainPercent}%`);
+        lines.push(`TOTAL QUOTE PRICE,${this.alarmTotalQuote},,TOTAL QUOTE PRICE,${this.sprinklerTotalQuote}`);
+        return lines.join('\n');
+    }
+
+    formatCSVValue(val) {
+        if (val === null || val === undefined) return '';
+        let stringVal = String(val);
+        stringVal = stringVal.replace(/"/g, '""');
+        if (stringVal.includes(',') || stringVal.includes('\n') || stringVal.includes('"')) {
+            stringVal = `"${stringVal}"`;
+        }
+        return stringVal;
+    }
+
+    downloadCSVFile(csvContent, filename) {
+        // Use text/plain to avoid LWS security issues with text/csv
+        const blob = new Blob([csvContent], { type: 'text/plain' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
     }
 }

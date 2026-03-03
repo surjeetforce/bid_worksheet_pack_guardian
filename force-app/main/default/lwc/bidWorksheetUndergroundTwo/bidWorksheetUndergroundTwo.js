@@ -8,10 +8,13 @@ import loadVersionById from '@salesforce/apex/BidWorksheetUndergroundController.
 export default class BidWorksheetUndergroundTwo extends LightningElement {
     @api recordId;
     @api sheetNumber = 2;
+    @api isReadOnly = false; // Set by parent when final version exists (Underground tab only)
     
     _versionIdToLoad = null;
     _lastLoadedVersionId = null; // Track last loaded version to avoid reloading same version
     _isLoadingData = false; // Flag to prevent autosave during data loading
+    _isUserEditing = false;
+    _editingCell = null; // { rowId, col, field }
     
     @api
     get versionIdToLoad() {
@@ -25,6 +28,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const normalizedNewValue = value === '' ? null : value;
         
         this._versionIdToLoad = value;
+        
         
         // Always reload if:
         // 1. lastLoaded is null (first time load) - ALWAYS reload on first load
@@ -40,6 +44,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
+            
             
             // Only load if tableRows are initialized (metadata loaded)
             if (this.tableRows && this.tableRows.length > 0) {
@@ -109,9 +114,9 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
     @track gainPercent = 0;
     @track overheadPercent = 0;
 
-    SALES_TAX_RATE = 0.0825;
-    CARTAGE_RATE = 0.03;
-    ASSESSMENTS_RATE = 0.67;
+    SALES_TAX_RATE = 8.25;
+    CARTAGE_RATE = 3;
+    ASSESSMENTS_RATE = 67;
     LABOR_RATE = 37.09;
     ENGINEERING_RATE = 28;
     FABRICATION_RATE = 18;
@@ -127,9 +132,12 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         return today.toLocaleDateString('en-US');
     }
 
+    get sheetWrapperClass() {
+        return 'estimate-table-wrapper' + (this.isReadOnly ? ' readonly-sheet' : '');
+    }
+
     connectedCallback() {
         if (!this.recordId) {
-            console.error('❌ No recordId provided');
             this.showToast('Error', 'Record ID required', 'error');
             this.isLoading = false;
             return;
@@ -162,12 +170,16 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
     @wire(getSheet2Items)
     wiredItems({ error, data }) {
         if (data) {
+            
             // ⭐ Set flag FIRST to prevent autosave during initialization
             this._isLoadingData = true;
             
             this.initializeDataFromMetadata(data);
             this.isLoading = false;
             this.calculateTotals();
+            
+            // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
+            // This ensures the setter fires and loads data
             
             // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
             // This ensures the setter fires and loads data
@@ -188,7 +200,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             }, 1500); // Give enough time for loadSavedSheet to complete
 
         } else if (error) {
-            console.error('❌ Error loading Sheet #2 metadata:', error);
             this.showToast('Error', 'Failed to load sheet configuration: ' + (error.body ? error.body.message : error.message), 'error');
             this.isLoading = false;
             this._isLoadingData = false; // Clear flag on error
@@ -200,6 +211,19 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             this.createRowFromMetadata(item, index)
         );
         this.nextRowId = this.tableRows.length;
+
+
+        const row83 = this.tableRows.find(r => r.excelRow === 83);
+        const row84 = this.tableRows.find(r => r.excelRow === 84);
+
+        if (row83) {
+        } else {
+        }
+
+        if (row84) {
+        } else {
+        }
+
     }
 
     createRowFromMetadata(data, id) {
@@ -264,28 +288,32 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const isRightCalculated = excelRow && calculatedRightRows.includes(excelRow);
         const canEditRightUnitPrice = excelRow && editableUnitPriceRows.includes(excelRow);
 
+        // Descriptions are now editable unless it's a comment row (which uses textarea)
+        const leftDescriptionReadonly = false; 
+        const rightDescriptionReadonly = false;
+
         // LEFT SIDE
-        const leftDescriptionReadonly = isLeftCommentRow || !!data.left.description;
-        // Amount: readonly if calculated OR if no description yet
-        const leftAmountReadonly = isLeftCommentRow || isLeftCalculated || !leftHasDescription;
-        // Unit price: readonly if calculated OR if no description, BUT LABOR unit price should be editable
+        // Amount: readonly ONLY if calculated
+        const leftAmountReadonly = isLeftCalculated || isLeftCommentRow;
+        // Unit price: readonly ONLY if calculated, BUT LABOR unit price should be editable
         const isLaborRow = excelRow === BidWorksheetUndergroundTwo.ROW_LABOR_COST;
-        const leftUnitPriceReadonly = isLeftCommentRow || (isLeftCalculated && !isLaborRow) || !leftHasDescription;
+        const leftUnitPriceReadonly = (isLeftCalculated && !isLaborRow) || isLeftCommentRow;
 
         // RIGHT SIDE
-        const rightDescriptionReadonly = isRightCommentRow || !!data.right.description;
-        const rightAmountReadonly = isRightCommentRow || isRightCalculated || !rightHasDescription;
+        // Amount: readonly ONLY if calculated
+        const rightAmountReadonly = isRightCalculated || isRightCommentRow;
+        // Unit price: readonly if calculated, UNLESS it's in the editable list
         const rightUnitPriceReadonly = isRightCommentRow
             ? true
             : canEditRightUnitPrice
                 ? false
-                : (isRightCalculated || !rightHasDescription);
+                : isRightCalculated;
 
         // Initialize overhead percentage from metadata
         if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD) {
             const initialOverheadRate = parseFloat(data.right.unitPrice);
             if (!isNaN(initialOverheadRate)) {
-                this.overheadPercent = initialOverheadRate * 100;
+                this.overheadPercent = initialOverheadRate;
             }
         }
 
@@ -293,7 +321,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         if (excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
             const initialGainRate = parseFloat(data.right.unitPrice);
             if (!isNaN(initialGainRate)) {
-                this.gainPercent = initialGainRate * 100;
+                this.gainPercent = initialGainRate;
             }
         }
 
@@ -301,6 +329,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         if (excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX) {
             const taxRate = parseFloat(data.right.unitPrice);
             if (!isNaN(taxRate)) {
+                // Percentage in 0-1 scale (0.0825 = 8.25%)
                 this.SALES_TAX_RATE = taxRate;
             }
         }
@@ -308,6 +337,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         if (excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE) {
             const cartageRate = parseFloat(data.right.unitPrice);
             if (!isNaN(cartageRate)) {
+                // Percentage in 0-1 scale
                 this.CARTAGE_RATE = cartageRate;
             }
         }
@@ -315,12 +345,15 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         if (excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL) {
             const assessmentRate = parseFloat(data.right.unitPrice);
             if (!isNaN(assessmentRate)) {
+                // Percentage in 0-1 scale
                 this.ASSESSMENTS_RATE = assessmentRate;
             }
         }
 
+        const versionKey = this._versionIdToLoad || 'draft';
         return {
             id: rowId,
+            listKey: `${rowId}_v_${versionKey}`,
             excelRow: excelRow,
             left: {
                 description: data.left.description || '',
@@ -329,9 +362,19 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                     ? data.left.amount
                     : '',
                 amountReadonly: leftAmountReadonly,
-                unitPrice: (data.left.unitPrice !== undefined && data.left.unitPrice !== null)
-                    ? data.left.unitPrice
-                    : '',
+                unitPrice: (() => {
+                    const unitPriceValue = (data.left.unitPrice !== undefined && data.left.unitPrice !== null)
+                        ? data.left.unitPrice : '';
+                    // Format percentage unitPrice to 5 decimals
+                    if (data.left.unitPriceFieldType === 'Percentage' && unitPriceValue) {
+                        const numValue = parseFloat(unitPriceValue);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return unitPriceValue;
+                })(),
                 unitPriceReadonly: leftUnitPriceReadonly,
                 gross: '',
                 unitPriceFieldType: data.left.unitPriceFieldType || 'Currency',
@@ -356,11 +399,11 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                 amountReadonly: rightAmountReadonly,
                 unitPrice: (data.right.unitPrice !== undefined && data.right.unitPrice !== null)
                     ? data.right.unitPrice
-                    : (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD ? '0.00' :
-                        excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX ? this.SALES_TAX_RATE.toFixed(2) :
-                            excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE ? this.CARTAGE_RATE.toFixed(2) :
-                                excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL ? this.ASSESSMENTS_RATE.toFixed(2) :
-                                    excelRow === BidWorksheetUndergroundTwo.ROW_GAIN ? '0.00' :
+                    : (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD ? '0.15' :
+                        excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX ? this.SALES_TAX_RATE.toFixed(5) :
+                            excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE ? this.CARTAGE_RATE.toFixed(5) :
+                                excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL ? this.ASSESSMENTS_RATE.toFixed(5) :
+                                    excelRow === BidWorksheetUndergroundTwo.ROW_GAIN ? '0.15' :
                                         ''),
                 unitPriceReadonly: rightUnitPriceReadonly,
                 gross: '',
@@ -386,61 +429,62 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         const field = event.target.dataset.field;
         const value = event.target.value;
 
+        this._isUserEditing = true;
+        this._editingCell = { rowId, col, field };
+
+
         const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
         if (rowIndex !== -1) {
-            const updatedRow = { ...this.tableRows[rowIndex] };
-            updatedRow[col] = { ...updatedRow[col], [field]: value };
-
-            const excelRow = updatedRow.excelRow;
-
-            // Validate unitPrice changes for overhead and gain
-            if (field === 'unitPrice' && col === 'right') {
-                const numericValue = parseFloat(value);
-
-                if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD ||
-                    excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
-                    if (numericValue < 0 || numericValue > 1) {
-                        this.showToast('Warning', 'Percentage must be between 0 and 1 (e.g., 0.15 = 15%)', 'warning');
-                        return;
-                    }
+            const excelRow = this.tableRows[rowIndex].excelRow;
+            const isPercentage = this.tableRows[rowIndex][col].isPercentageUnitPrice;
+            
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && isPercentage) {
+                const numValue = parseFloat(value);
+                if (value.trim() !== '' && (isNaN(numValue) || numValue < 0 || numValue > 1)) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0
+                    this.tableRows[rowIndex][col].unitPrice = '0';
+                    event.target.value = '0';
+                    this.tableRows = [...this.tableRows]; // Force re-render
+                    return;
                 }
+            }
+            
+            // Update the model directly without re-assigning the whole array
+            // This prevents full re-render and cursor jumping
+            this.tableRows[rowIndex][col][field] = value;
 
-                // Capture rate changes
-                if (excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX) {
-                    if (!isNaN(numericValue)) {
+            // Capture rate changes immediately for calculations
+            if (field === 'unitPrice' && col === 'right') {
+                let numericValue = parseFloat(value);
+                if (!isNaN(numericValue)) {
+                    if (excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX) {
                         this.SALES_TAX_RATE = numericValue;
-                    }
-                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE) {
-                    if (!isNaN(numericValue)) {
+                    } else if (excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE) {
                         this.CARTAGE_RATE = numericValue;
-                    }
-                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL) {
-                    if (!isNaN(numericValue)) {
+                    } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL) {
                         this.ASSESSMENTS_RATE = numericValue;
-                    }
-                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_LABOR_FACTOR) {
-                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD) {
-                    if (!isNaN(numericValue)) {
-                        this.overheadPercent = numericValue * 100;
-                    }
-                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
-                    if (!isNaN(numericValue)) {
-                        this.gainPercent = numericValue * 100;
+                    } else if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD) {
+                        this.overheadPercent = numericValue;
+                    } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
+                        this.gainPercent = numericValue;
                     }
                 }
             }
 
             // Recalculate gross if amount or unitPrice changed
             if (field === 'amount' || field === 'unitPrice') {
-                updatedRow[col].gross = this.calculateGross(
-                    updatedRow[col].amount,
-                    updatedRow[col].unitPrice
+                const isPercentage = this.tableRows[rowIndex][col].isPercentageUnitPrice;
+                this.tableRows[rowIndex][col].gross = this.calculateGross(
+                    this.tableRows[rowIndex][col].amount,
+                    this.tableRows[rowIndex][col].unitPrice,
+                    isPercentage
                 );
             }
 
             // If description changed, recalculate readonly states for amount and unitPrice
             if (field === 'description') {
-                const hasDescription = !!(value && value.trim());
                 const isCalculated = excelRow && (
                     (col === 'left' && [
                         BidWorksheetUndergroundTwo.ROW_SHEET1_TOTAL,
@@ -448,7 +492,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                         BidWorksheetUndergroundTwo.ROW_LABOR_FACTOR,
                         BidWorksheetUndergroundTwo.ROW_TOTAL_LABOR_HOURS,
                         BidWorksheetUndergroundTwo.ROW_LABOR_COST,
-                        // ROW_ENGINEERING_COST and ROW_FABRICATION_COST removed - amount fields should be editable
                         BidWorksheetUndergroundTwo.ROW_FIELD_ENG_FAB_TOTAL_LEFT
                     ].includes(excelRow)) ||
                     (col === 'right' && [
@@ -468,10 +511,10 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                         BidWorksheetUndergroundTwo.ROW_EXCLUSIONS_LABEL
                     ].includes(excelRow))
                 );
-                const isCommentRow = updatedRow[col].isCommentRow || false;
+                const isCommentRow = this.tableRows[rowIndex][col].isCommentRow || false;
                 
-                // Update readonly states based on new description value
-                updatedRow[col].amountReadonly = isCommentRow || isCalculated || !hasDescription;
+                // Update readonly states: only lock if it's a calculated row or comment row
+                this.tableRows[rowIndex][col].amountReadonly = isCalculated || isCommentRow;
                 
                 // For unit price, check if it's in the editable list (right side only)
                 if (col === 'right') {
@@ -484,140 +527,229 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                         94 // TRAVEL/SUBSISTANCE
                     ];
                     const canEditUnitPrice = excelRow && editableUnitPriceRows.includes(excelRow);
-                    updatedRow[col].unitPriceReadonly = isCommentRow
+                    this.tableRows[rowIndex][col].unitPriceReadonly = isCommentRow
                         ? true
                         : canEditUnitPrice
                             ? false
-                            : (isCalculated || !hasDescription);
+                            : isCalculated;
                 } else {
-                    updatedRow[col].unitPriceReadonly = isCommentRow || isCalculated || !hasDescription;
+                    const isLaborRow = excelRow === BidWorksheetUndergroundTwo.ROW_LABOR_COST;
+                    this.tableRows[rowIndex][col].unitPriceReadonly = (isCalculated && !isLaborRow) || isCommentRow;
                 }
                 
                 // Update class properties to reflect readonly state
-                updatedRow[col].amountClass = updatedRow[col].amountReadonly ? 'readonly-cell' : '';
-                updatedRow[col].unitPriceClass = updatedRow[col].unitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit';
-                // Description class already includes readonly-cell if needed, but update it
-                const baseDescClass = updatedRow[col].descriptionClass ? updatedRow[col].descriptionClass.replace(' readonly-cell', '') : 'description-cell';
-                updatedRow[col].descriptionClass = baseDescClass + (updatedRow[col].descriptionReadonly ? ' readonly-cell' : '');
+                this.tableRows[rowIndex][col].amountClass = this.tableRows[rowIndex][col].amountReadonly ? 'readonly-cell' : '';
+                this.tableRows[rowIndex][col].unitPriceClass = this.tableRows[rowIndex][col].unitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit';
+                // Description class: remove readonly-cell as they are now always editable
+                const baseDescClass = this.tableRows[rowIndex][col].descriptionClass ? this.tableRows[rowIndex][col].descriptionClass.replace(' readonly-cell', '') : 'description-cell';
+                this.tableRows[rowIndex][col].descriptionClass = baseDescClass;
             }
 
-            this.tableRows = [
-                ...this.tableRows.slice(0, rowIndex),
-                updatedRow,
-                ...this.tableRows.slice(rowIndex + 1)
-            ];
-
-            this.calculateTotals();
+            // Debounce the calculation
+            if (this.calculationTimeout) {
+                clearTimeout(this.calculationTimeout);
+            }
+            this.calculationTimeout = setTimeout(() => {
+                this.calculateTotals();
+            }, 300);
         }
+    }
+
+    /**
+     * Handle blur to perform final normalization and rounding
+     */
+    handleBlur(event) {
+        const rowId = parseInt(event.target.dataset.row);
+        const col = event.target.dataset.col;
+        const field = event.target.dataset.field;
+        let value = event.target.value;
+
+        this._isUserEditing = false;
+        this._editingCell = null;
+
+        const rowIndex = this.tableRows.findIndex(row => row.id === rowId);
+        if (rowIndex === -1) return;
+
+        // If the field is empty, keep it empty instead of forcing a 0
+        if (!value || value.trim() === '') {
+            this.tableRows[rowIndex][col][field] = '';
+            this.tableRows = [...this.tableRows];
+            this.calculateTotals();
+            return;
+        }
+
+        if (field === 'amount' || field === 'unitPrice') {
+            let numValue = parseFloat(value) || 0;
+            const excelRow = this.tableRows[rowIndex].excelRow;
+            const isPercentage = this.tableRows[rowIndex][col].isPercentageUnitPrice;
+            
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && isPercentage) {
+                if (numValue < 0 || numValue > 1) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0
+                    value = '0';
+                    this.tableRows[rowIndex][col][field] = value;
+                    this.tableRows = [...this.tableRows]; // Force re-render
+                    this.calculateTotals(); // Recalculate
+                    return;
+                }
+            }
+            
+            // Block negative values (except some specific cases if any)
+            if (numValue < 0) {
+                this.showToast('Warning', 'Negative values not allowed', 'warning');
+                value = '0';
+            } else {
+                // Round percentage fields to 5 decimals, others to 2 decimals
+                const precision = (field === 'unitPrice' && isPercentage) ? 5 : 2;
+                value = Math.round((numValue + Number.EPSILON) * Math.pow(10, precision)) / Math.pow(10, precision);
+                value = value.toString();
+            }
+            
+            this.tableRows[rowIndex][col][field] = value;
+
+            // Capture rate changes from unitPrice fields
+            if (field === 'unitPrice' && col === 'right') {
+                const numericValue = parseFloat(value);
+                if (excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX) {
+                    this.SALES_TAX_RATE = numericValue;
+                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE) {
+                    this.CARTAGE_RATE = numericValue;
+                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL) {
+                    this.ASSESSMENTS_RATE = numericValue;
+                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD) {
+                    this.overheadPercent = numericValue;
+                } else if (excelRow === BidWorksheetUndergroundTwo.ROW_GAIN) {
+                    this.gainPercent = numericValue;
+                }
+            }
+            
+            // Recalculate gross
+            this.tableRows[rowIndex][col].gross = this.calculateGross(
+                this.tableRows[rowIndex][col].amount,
+                this.tableRows[rowIndex][col].unitPrice,
+                isPercentage
+            );
+        }
+
+        // Force a re-render on blur and full recalculation
+        this.tableRows = [...this.tableRows];
+        this.calculateTotals();
     }
 
     updateAllCalculatedRowDisplays() {
         const findRow = (excelRowNum) => this.tableRows.find(r => r.excelRow === excelRowNum);
+        const shouldUpdate = (rowId, col, field) => {
+            if (!this._isUserEditing || !this._editingCell) return true;
+            return !(this._editingCell.rowId === rowId && this._editingCell.col === col && this._editingCell.field === field);
+        };
 
         const row71 = findRow(BidWorksheetUndergroundTwo.ROW_SHEET1_TOTAL);
         if (row71) {
-            row71.left.gross = this.sheet1Subtotal || '0.00';
-            row71.right.gross = this.grandTotalMaterial;
+            if (shouldUpdate(row71.id, 'left', 'gross')) row71.left.gross = this.sheet1Subtotal || '0.00';
+            if (shouldUpdate(row71.id, 'right', 'gross')) row71.right.gross = this.grandTotalMaterial;
         }
 
         const row73 = findRow(BidWorksheetUndergroundTwo.ROW_SALES_TAX);
         if (row73) {
-            row73.right.amount = this.grandTotalMaterial;
-            row73.right.unitPrice = this.SALES_TAX_RATE.toFixed(4);
-            row73.right.gross = this.salesTax;
+            if (shouldUpdate(row73.id, 'right', 'amount')) row73.right.amount = this.grandTotalMaterial;
+            if (shouldUpdate(row73.id, 'right', 'unitPrice')) row73.right.unitPrice = this.SALES_TAX_RATE.toFixed(5);
+            if (shouldUpdate(row73.id, 'right', 'gross')) row73.right.gross = this.salesTax;
         }
 
         const row74 = findRow(BidWorksheetUndergroundTwo.ROW_CARTAGE);
         if (row74) {
-            row74.right.amount = this.grandTotalMaterial;
-            row74.right.unitPrice = this.CARTAGE_RATE.toFixed(4);
-            row74.right.gross = this.cartage;
+            if (shouldUpdate(row74.id, 'right', 'amount')) row74.right.amount = this.grandTotalMaterial;
+            if (shouldUpdate(row74.id, 'right', 'unitPrice')) row74.right.unitPrice = this.CARTAGE_RATE.toFixed(5);
+            if (shouldUpdate(row74.id, 'right', 'gross')) row74.right.gross = this.cartage;
         }
 
         const row90 = findRow(BidWorksheetUndergroundTwo.ROW_MATERIAL_EQUIP_SUBTOTAL);
         if (row90) {
-            row90.right.gross = this.materialEquipSubtotal;
+            if (shouldUpdate(row90.id, 'right', 'gross')) row90.right.gross = this.materialEquipSubtotal;
         }
 
         const row91 = findRow(BidWorksheetUndergroundTwo.ROW_FIELD_ENG_FAB_TOTAL_RIGHT);
         if (row91) {
-            row91.right.gross = this.fieldEngFabTotal;
+            if (shouldUpdate(row91.id, 'right', 'gross')) row91.right.gross = this.fieldEngFabTotal;
         }
 
         const row92 = findRow(BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL);
         if (row92) {
-            row92.right.amount = this.fieldEngFabTotal;
-            row92.right.unitPrice = this.ASSESSMENTS_RATE.toFixed(2);
-            row92.right.gross = this.assessments;
-            row92.left.gross = this.grandTotalMaterial;
+            if (shouldUpdate(row92.id, 'right', 'amount')) row92.right.amount = this.fieldEngFabTotal;
+            if (shouldUpdate(row92.id, 'right', 'unitPrice')) row92.right.unitPrice = this.ASSESSMENTS_RATE.toFixed(5);
+            if (shouldUpdate(row92.id, 'right', 'gross')) row92.right.gross = this.assessments;
+            if (shouldUpdate(row92.id, 'left', 'gross')) row92.left.gross = this.grandTotalMaterial;
         }
 
         const row94 = findRow(BidWorksheetUndergroundTwo.ROW_LABOR_FACTOR);
         if (row94) {
             const laborFactorAmount = (parseFloat(this.totalLaborHours) / this.LABOR_FACTOR_DIVISOR).toFixed(2);
-            row94.right.amount = laborFactorAmount;
-            row94.right.gross = this.laborFactor;
+            if (shouldUpdate(row94.id, 'right', 'amount')) row94.right.amount = laborFactorAmount;
+            if (shouldUpdate(row94.id, 'right', 'gross')) row94.right.gross = this.laborFactor;
         }
 
         const row96 = findRow(BidWorksheetUndergroundTwo.ROW_SUBTOTAL_BEFORE_GAIN);
         if (row96) {
-            row96.right.gross = this.subtotalBeforeGain;
+            if (shouldUpdate(row96.id, 'right', 'gross')) row96.right.gross = this.subtotalBeforeGain;
         }
 
         const row97 = findRow(BidWorksheetUndergroundTwo.ROW_OVERHEAD);
         if (row97) {
-            row97.right.amount = this.subtotalBeforeGain;
-            row97.right.unitPrice = (this.overheadPercent / 100).toFixed(4);
-            row97.right.gross = this.overhead;
+            if (shouldUpdate(row97.id, 'right', 'amount')) row97.right.amount = this.subtotalBeforeGain;
+            if (shouldUpdate(row97.id, 'right', 'unitPrice')) row97.right.unitPrice = this.overheadPercent.toFixed(5);
+            if (shouldUpdate(row97.id, 'right', 'gross')) row97.right.gross = this.overhead;
         }
 
         const row99 = findRow(BidWorksheetUndergroundTwo.ROW_SUBTOTAL_AFTER_OVERHEAD);
         if (row99) {
-            row99.right.gross = this.subtotalAfterGain;
+            if (shouldUpdate(row99.id, 'right', 'gross')) row99.right.gross = this.subtotalAfterGain;
         }
 
         const row100 = findRow(BidWorksheetUndergroundTwo.ROW_GAIN);
         if (row100) {
-            row100.right.amount = this.subtotalAfterGain;
-            row100.right.unitPrice = (this.gainPercent / 100).toFixed(4);
-            row100.right.gross = this.gain;
+            if (shouldUpdate(row100.id, 'right', 'amount')) row100.right.amount = this.subtotalAfterGain;
+            if (shouldUpdate(row100.id, 'right', 'unitPrice')) row100.right.unitPrice = this.gainPercent.toFixed(5);
+            if (shouldUpdate(row100.id, 'right', 'gross')) row100.right.gross = this.gain;
         }
 
         const row102 = findRow(BidWorksheetUndergroundTwo.ROW_TOTAL_UNDERGROUND_PRICE);
         if (row102) {
-            row102.right.gross = this.totalUndergroundPrice;
+            if (shouldUpdate(row102.id, 'right', 'gross')) row102.right.gross = this.totalUndergroundPrice;
         }
 
         const row120 = findRow(BidWorksheetUndergroundTwo.ROW_TOTAL_LABOR_HOURS);
         if (row120) {
-            row120.left.gross = this.totalLaborHours;
+            if (shouldUpdate(row120.id, 'left', 'gross')) row120.left.gross = this.totalLaborHours;
         }
 
         const row122 = findRow(BidWorksheetUndergroundTwo.ROW_LABOR_COST);
         if (row122) {
-            row122.left.amount = this.totalLaborHours;
-            row122.left.gross = this.laborCost;
+            if (shouldUpdate(row122.id, 'left', 'amount')) row122.left.amount = this.totalLaborHours;
+            if (shouldUpdate(row122.id, 'left', 'gross')) row122.left.gross = this.laborCost;
         }
 
         const row123 = findRow(BidWorksheetUndergroundTwo.ROW_ENGINEERING_COST);
         if (row123) {
-            row123.left.gross = this.engineeringCost;
+            if (shouldUpdate(row123.id, 'left', 'gross')) row123.left.gross = this.engineeringCost;
         }
 
         const row124 = findRow(BidWorksheetUndergroundTwo.ROW_FABRICATION_COST);
         if (row124) {
-            row124.left.gross = this.fabricationCost;
+            if (shouldUpdate(row124.id, 'left', 'gross')) row124.left.gross = this.fabricationCost;
         }
 
         const row126 = findRow(BidWorksheetUndergroundTwo.ROW_FIELD_ENG_FAB_TOTAL_LEFT);
         if (row126) {
-            row126.left.gross = this.fieldEngFabTotal;
+            if (shouldUpdate(row126.id, 'left', 'gross')) row126.left.gross = this.fieldEngFabTotal;
         }
 
         this.tableRows = [...this.tableRows];
     }
 
     calculateTotals() {
+
         this.calculateGrandTotalMaterialCost();
         this.calculateSalesTaxAndCartage();
         this.calculateTotalLaborHours();
@@ -633,6 +765,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         this.calculateFinalTotal();
 
         this.updateAllCalculatedRowDisplays();
+
 
         this.notifyParent();
         
@@ -764,7 +897,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
     calculateOverhead() {
         const subtotalBeforeGain = parseFloat(this.subtotalBeforeGain) || 0;
-        this.overhead = (subtotalBeforeGain * (this.overheadPercent / 100)).toFixed(2);
+        this.overhead = (subtotalBeforeGain * this.overheadPercent).toFixed(2);
     }
 
     calculateSubtotalAfterGain() {
@@ -775,7 +908,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
     calculateGain() {
         const subtotal = parseFloat(this.subtotalAfterGain) || 0;
-        this.gain = (subtotal * (this.gainPercent / 100)).toFixed(2);
+        this.gain = (subtotal * this.gainPercent).toFixed(2);
     }
 
     calculateFinalTotal() {
@@ -784,9 +917,10 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
         this.totalUndergroundPrice = (subtotalAfterGain + gain).toFixed(2);
     }
 
-    calculateGross(amount, unitPrice) {
+    calculateGross(amount, unitPrice, isPercentage = false) {
         const amountNum = parseFloat(amount) || 0;
-        const priceNum = parseFloat(unitPrice) || 0;
+        let priceNum = parseFloat(unitPrice) || 0;
+        // Percentage fields use 0-1 scale (0.1 = 10%), no division by 100
         const gross = amountNum * priceNum;
         return gross > 0 ? gross.toFixed(2) : '';
     }
@@ -932,6 +1066,7 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             this.overhead = updateIfExists(sheetData.overhead, this.overhead);
             this.totalUndergroundPrice = updateIfExists(sheetData.totalUndergroundPrice, this.totalUndergroundPrice);
 
+
             if (sheetData.lineItems && Array.isArray(sheetData.lineItems) && sheetData.lineItems.length > 0) {
                 const mergedRows = this.tableRows.map((existingRow, index) => {
                     const savedRow = sheetData.lineItems[index];
@@ -948,8 +1083,19 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                                 ? savedRow.left.description : existingRow.left.description,
                             amount: (savedRow.left?.amount !== undefined && savedRow.left?.amount !== null)
                                 ? savedRow.left.amount : existingRow.left.amount,
-                            unitPrice: (savedRow.left?.unitPrice !== undefined && savedRow.left?.unitPrice !== null)
-                                ? savedRow.left.unitPrice : existingRow.left.unitPrice,
+                            unitPrice: (() => {
+                                const savedValue = (savedRow.left?.unitPrice !== undefined && savedRow.left?.unitPrice !== null)
+                                    ? savedRow.left.unitPrice : existingRow.left.unitPrice;
+                                // Format percentage unitPrice to 5 decimals
+                                if (existingRow.left.isPercentageUnitPrice && savedValue) {
+                                    const numValue = parseFloat(savedValue);
+                                    if (!isNaN(numValue)) {
+                                        return numValue.toFixed(5);
+                                    }
+                                    return '0';
+                                }
+                                return savedValue;
+                            })(),
                             gross: (savedRow.left?.gross !== undefined && savedRow.left?.gross !== null)
                                 ? savedRow.left.gross : existingRow.left.gross
                         },
@@ -959,12 +1105,29 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
                                 ? savedRow.right.description : existingRow.right.description,
                             amount: (savedRow.right?.amount !== undefined && savedRow.right?.amount !== null)
                                 ? savedRow.right.amount : existingRow.right.amount,
-                            unitPrice: (savedRow.right?.unitPrice !== undefined && savedRow.right?.unitPrice !== null)
-                                ? savedRow.right.unitPrice : existingRow.right.unitPrice,
+                            unitPrice: (() => {
+                                const savedValue = (savedRow.right?.unitPrice !== undefined && savedRow.right?.unitPrice !== null)
+                                    ? savedRow.right.unitPrice : existingRow.right.unitPrice;
+                                // Format percentage unitPrice to 5 decimals
+                                if (existingRow.right.isPercentageUnitPrice && savedValue) {
+                                    const numValue = parseFloat(savedValue);
+                                    if (!isNaN(numValue)) {
+                                        return numValue.toFixed(5);
+                                    }
+                                    return '0';
+                                }
+                                return savedValue;
+                            })(),
                             gross: (savedRow.right?.gross !== undefined && savedRow.right?.gross !== null)
                                 ? savedRow.right.gross : existingRow.right.gross
                         }
                     };
+                });
+
+                // Version-aware list key so comment/exclusion textareas re-render with new content
+                const versionKey = this._versionIdToLoad || 'draft';
+                mergedRows.forEach(row => {
+                    row.listKey = `${row.id}_v_${versionKey}`;
                 });
 
                 this.tableRows = mergedRows;
@@ -972,19 +1135,19 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
                 // Update display rates
                 const row73 = this.tableRows.find(r => r.excelRow === BidWorksheetUndergroundTwo.ROW_SALES_TAX);
-                if (row73) row73.right.unitPrice = this.SALES_TAX_RATE.toFixed(4);
+                if (row73) row73.right.unitPrice = this.SALES_TAX_RATE.toFixed(5);
 
                 const row74 = this.tableRows.find(r => r.excelRow === BidWorksheetUndergroundTwo.ROW_CARTAGE);
-                if (row74) row74.right.unitPrice = this.CARTAGE_RATE.toFixed(4);
+                if (row74) row74.right.unitPrice = this.CARTAGE_RATE.toFixed(5);
 
                 const row92 = this.tableRows.find(r => r.excelRow === BidWorksheetUndergroundTwo.ROW_GRAND_TOTAL_MATERIAL);
-                if (row92) row92.right.unitPrice = this.ASSESSMENTS_RATE.toFixed(2);
+                if (row92) row92.right.unitPrice = this.ASSESSMENTS_RATE.toFixed(5);
 
                 const row97 = this.tableRows.find(r => r.excelRow === BidWorksheetUndergroundTwo.ROW_OVERHEAD);
-                if (row97) row97.right.unitPrice = (this.overheadPercent / 100).toFixed(4);
+                if (row97) row97.right.unitPrice = this.overheadPercent.toFixed(5);
 
                 const row100 = this.tableRows.find(r => r.excelRow === BidWorksheetUndergroundTwo.ROW_GAIN);
-                if (row100) row100.right.unitPrice = (this.gainPercent / 100).toFixed(4);
+                if (row100) row100.right.unitPrice = this.gainPercent.toFixed(5);
 
                 this.tableRows = [...this.tableRows];
             }
@@ -999,7 +1162,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
             }, 50);
 
         } catch (err) {
-            console.error('❌ [APPLY] Error applying loaded data:', err);
             this.logError('Apply loaded data failed', err);
             this.showToast('Error', 'Failed to apply loaded sheet data: ' + err.message, 'error');
             this._isLoadingData = false; // Clear flag on error
@@ -1027,7 +1189,6 @@ export default class BidWorksheetUndergroundTwo extends LightningElement {
 
     logError(context, error) {
         const safeMsg = error && error.body && error.body.message ? error.body.message : error && error.message ? error.message : String(error);
-        console.error(`❌ ${context}:`, safeMsg, error);
     }
 
     showToast(title, message, variant) {

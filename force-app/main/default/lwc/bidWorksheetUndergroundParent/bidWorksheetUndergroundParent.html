@@ -59,6 +59,12 @@
                         <lightning-tab label="Bid Worksheet Underground"
                             value="underground" onactive={handleTabChange}>
                             <div class="tab-section slds-p-around_small">
+                                <div class="tab-header slds-m-bottom_medium slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                                    <div class="slds-text-heading_small">Underground Estimate Overview</div>
+                                    <lightning-button label="Download Underground CSV" icon-name="utility:download" variant="brand-outline" 
+                                        onclick={handleDownloadUndergroundCSV}>
+                                    </lightning-button>
+                                </div>
                                 <!-- Accordion Sections for Underground Sheets -->
                                 <lightning-accordion
                                     active-section-name={activeSections}
@@ -74,6 +80,7 @@
                                         <c-bid-worksheet-underground
                                             record-id={recordId} sheet-number="1"
                                             version-id-to-load={currentSelectedVersionId}
+                                            is-read-only={currentIsReadOnly}
                                             onsheetupdate={handleSheet1Update}
                                             oncellchange={handleCellChangeGeneric}>
                                         </c-bid-worksheet-underground>
@@ -91,6 +98,7 @@
                                             record-id={recordId} sheet-number="2"
                                             sheet1-subtotal={sheet1Subtotal}
                                             version-id-to-load={currentSelectedVersionId}
+                                            is-read-only={currentIsReadOnly}
                                             onsheetupdate={handleSheet2Update}
                                             oncellchange={handleCellChangeGeneric}>
                                         </c-bid-worksheet-underground-two>
@@ -107,6 +115,7 @@
                                     record-id={recordId}
                                     sheet-number="1"
                                     version-id-to-load={currentSelectedVersionId}
+                                    is-read-only={currentIsReadOnly}
                                     onsheetupdate={handleEstimateUpdate}
                                     oncellchange={handleCellChangeGeneric}>
                                 </c-bid-worksheet-estimate>
@@ -120,6 +129,7 @@
                                 <c-schedule-of-values
                                     record-id={recordId}
                                     version-id-to-load={currentSelectedVersionId}
+                                    is-read-only={currentIsReadOnly}
                                     onsovupdate={handleSOVUpdate}
                                     oncellchange={handleCellChangeGeneric}>
                                 </c-schedule-of-values>
@@ -135,6 +145,7 @@
                                 <c-design-worksheet
                                     record-id={recordId}
                                     version-id-to-load={currentSelectedVersionId}
+                                    is-read-only={currentIsReadOnly}
                                     oncellchange={handleCellChangeLightning}>
                                 </c-design-worksheet>
                             </div>
@@ -146,6 +157,70 @@
         </div>
 
         <footer class="slds-modal__footer custom-footer">
+            <!-- Underground: Mark as Final checkbox (only when on draft and no final version exists) -->
+            <template if:true={showMarkAsFinalCheckboxUnderground}>
+                <div class="slds-form-element slds-m-bottom_small slds-m-right_medium">
+                    <div class="slds-form-element__control">
+                        <div class="slds-checkbox">
+                            <input type="checkbox" id="mark-as-final-underground" class="mark-as-final-checkbox-underground" />
+                            <label class="slds-checkbox__label" for="mark-as-final-underground">
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">
+                                    <strong>Mark this version as FINAL</strong> (No further versions can be created)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <!-- Estimates: Mark as Final checkbox (only when on draft and no final version exists) -->
+            <template if:true={showMarkAsFinalCheckboxEstimate}>
+                <div class="slds-form-element slds-m-bottom_small slds-m-right_medium">
+                    <div class="slds-form-element__control">
+                        <div class="slds-checkbox">
+                            <input type="checkbox" id="mark-as-final-estimate" class="mark-as-final-checkbox-estimate" />
+                            <label class="slds-checkbox__label" for="mark-as-final-estimate">
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">
+                                    <strong>Mark this version as FINAL</strong> (No further versions can be created)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <!-- SOV: Mark as Final checkbox (only when on draft and no final version exists) -->
+            <template if:true={showMarkAsFinalCheckboxSOV}>
+                <div class="slds-form-element slds-m-bottom_small slds-m-right_medium">
+                    <div class="slds-form-element__control">
+                        <div class="slds-checkbox">
+                            <input type="checkbox" id="mark-as-final-sov" class="mark-as-final-checkbox-sov" />
+                            <label class="slds-checkbox__label" for="mark-as-final-sov">
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">
+                                    <strong>Mark this version as FINAL</strong> (No further versions can be created)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <!-- Design: Mark as Final checkbox (only when on draft and no final version exists) -->
+            <template if:true={showMarkAsFinalCheckboxDesign}>
+                <div class="slds-form-element slds-m-bottom_small slds-m-right_medium">
+                    <div class="slds-form-element__control">
+                        <div class="slds-checkbox">
+                            <input type="checkbox" id="mark-as-final-design" class="mark-as-final-checkbox-design" />
+                            <label class="slds-checkbox__label" for="mark-as-final-design">
+                                <span class="slds-checkbox_faux"></span>
+                                <span class="slds-form-element__label">
+                                    <strong>Mark this version as FINAL</strong> (No further versions can be created)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
             <!-- Save button for Underground tab -->
             <template if:true={showSaveUndergroundButton}>
                 <lightning-button
@@ -155,6 +230,13 @@
                     onclick={handleSaveUnderground}
                     disabled={isSaving}>
                 </lightning-button>
+            </template>
+            <!-- Underground: Final version message -->
+            <template if:true={currentHasFinalVersion}>
+                <div class="slds-text-color_error slds-text-align_center slds-m-left_medium">
+                    <lightning-icon icon-name="utility:lock" size="x-small"></lightning-icon>
+                    This worksheet has been marked as FINAL. No further changes can be saved.
+                </div>
             </template>
 
             <!-- Save button for Estimates tab -->

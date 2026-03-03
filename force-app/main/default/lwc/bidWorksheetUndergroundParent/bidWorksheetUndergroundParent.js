@@ -7,6 +7,10 @@ import saveSOVSheet from '@salesforce/apex/BidWorksheetUndergroundController.sav
 import updateOpportunityFields from '@salesforce/apex/BidWorksheetUndergroundController.updateOpportunityFields';
 import getNextVersionNumber from '@salesforce/apex/BidWorksheetUndergroundController.getNextVersionNumber';
 import getVersionHistory from '@salesforce/apex/BidWorksheetUndergroundController.getVersionHistory';
+import getFinalVersionStatus from '@salesforce/apex/BidWorksheetUndergroundController.getFinalVersionStatus';
+import getFinalVersionStatus_Estimate from '@salesforce/apex/BidWorksheetUndergroundController.getFinalVersionStatus_Estimate';
+import getFinalVersionStatus_SOV from '@salesforce/apex/BidWorksheetUndergroundController.getFinalVersionStatus_SOV';
+import getFinalVersionStatus_Design from '@salesforce/apex/BidWorksheetUndergroundController.getFinalVersionStatus_Design';
 import loadVersionById from '@salesforce/apex/BidWorksheetUndergroundController.loadVersionById';
 import autoSaveSheet from '@salesforce/apex/BidWorksheetUndergroundController.autoSaveSheet';
 // Import new wrapper methods for other worksheets
@@ -46,6 +50,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             nextVersionNumber: 1,
             autoSaveTimeout: null,
             autoSaveStatus: '',
+            hasFinalVersion: false,
+            finalVersionId: null,
+            showMarkAsFinalCheckbox: false,
             getVersionHistoryMethod: getVersionHistory,
             getNextVersionMethod: getNextVersionNumber,
             autoSaveMethod: autoSaveSheet,
@@ -61,6 +68,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             nextVersionNumber: 1,
             autoSaveTimeout: null,
             autoSaveStatus: '',
+            hasFinalVersion: false,
+            finalVersionId: null,
+            showMarkAsFinalCheckbox: false,
             getVersionHistoryMethod: getVersionHistory_Estimate,
             getNextVersionMethod: getNextVersionNumber_Estimate,
             autoSaveMethod: autoSaveEstimateSheet,
@@ -76,6 +86,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             nextVersionNumber: 1,
             autoSaveTimeout: null,
             autoSaveStatus: '',
+            hasFinalVersion: false,
+            finalVersionId: null,
+            showMarkAsFinalCheckbox: false,
             getVersionHistoryMethod: getVersionHistory_SOV,
             getNextVersionMethod: getNextVersionNumber_SOV,
             autoSaveMethod: autoSaveSOVSheet,
@@ -91,6 +104,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             nextVersionNumber: 1,
             autoSaveTimeout: null,
             autoSaveStatus: '',
+            hasFinalVersion: false,
+            finalVersionId: null,
+            showMarkAsFinalCheckbox: false,
             getVersionHistoryMethod: getVersionHistory_Design,
             getNextVersionMethod: getNextVersionNumber_Design,
             autoSaveMethod: autoSaveDesignWorksheet,
@@ -112,6 +128,7 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     _isInitializing = true; // Flag to prevent autosave during component initialization
 
     connectedCallback() {
+        
         // Set initialization flag - will be cleared after components are ready
         this._isInitializing = true;
         
@@ -175,12 +192,72 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
      * Load version data for a specific tab
      */
     async loadVersionDataForTab(tabName) {
-        const config = this.getConfigForTab(tabName);
+        let config = this.getConfigForTab(tabName);
         if (!config || !this.recordId) {
             return;
         }
 
         try {
+            // Underground: load final version status first
+            if (tabName === 'underground') {
+                const finalStatus = await getFinalVersionStatus({ opportunityId: this.recordId });
+                const hasFinalVersion = !!finalStatus.hasFinalVersion;
+                const finalVersionId = finalStatus.finalVersionId || null;
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    [tabName]: {
+                        ...config,
+                        hasFinalVersion,
+                        finalVersionId
+                    }
+                };
+                config = this.getConfigForTab(tabName);
+            }
+            // Estimates: load final version status first
+            if (tabName === 'estimates') {
+                const finalStatus = await getFinalVersionStatus_Estimate({ opportunityId: this.recordId });
+                const hasFinalVersion = !!finalStatus.hasFinalVersion;
+                const finalVersionId = finalStatus.finalVersionId || null;
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    [tabName]: {
+                        ...config,
+                        hasFinalVersion,
+                        finalVersionId
+                    }
+                };
+                config = this.getConfigForTab(tabName);
+            }
+            // Schedule (SOV): load final version status first
+            if (tabName === 'schedule') {
+                const finalStatus = await getFinalVersionStatus_SOV({ opportunityId: this.recordId });
+                const hasFinalVersion = !!finalStatus.hasFinalVersion;
+                const finalVersionId = finalStatus.finalVersionId || null;
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    [tabName]: {
+                        ...config,
+                        hasFinalVersion,
+                        finalVersionId
+                    }
+                };
+                config = this.getConfigForTab(tabName);
+            }
+            // Design: load final version status first
+            if (tabName === 'design') {
+                const finalStatus = await getFinalVersionStatus_Design({ opportunityId: this.recordId });
+                const hasFinalVersion = !!finalStatus.hasFinalVersion;
+                const finalVersionId = finalStatus.finalVersionId || null;
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    [tabName]: {
+                        ...config,
+                        hasFinalVersion,
+                        finalVersionId
+                    }
+                };
+                config = this.getConfigForTab(tabName);
+            }
 
             if (tabName === 'schedule') {
                 
@@ -194,7 +271,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                         try {
                             sovComponent.populateJobNameFromDesign(currentJobName);
                         } catch (err) {
-                            console.error('Error calling refreshJobNameFromDesign on SOV component', err);
                         }
                     }
                 }, 0);
@@ -205,7 +281,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             // Then load version list
             await this.loadVersionListForTab(tabName);
         } catch (error) {
-            console.error(`Error loading version data for ${tabName}:`, error);
         }
     }
 
@@ -227,7 +302,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
         } catch (error) {
-            console.error(`Error loading next version number for ${tabName}:`, error);
             this.worksheetConfig = {
                 ...this.worksheetConfig,
                 [tabName]: {
@@ -242,61 +316,79 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
      * Load version list for a specific tab
      */
     async loadVersionListForTab(tabName) {
-        const config = this.getConfigForTab(tabName);
+        let config = this.getConfigForTab(tabName);
         if (!config || !this.recordId) return;
         
         try {
             // Ensure nextVersionNumber is loaded
             if (!config.nextVersionNumber) {
                 await this.loadNextVersionNumberForTab(tabName);
-                // Get updated config after loading version number
                 config = this.getConfigForTab(tabName);
             }
             
             const versions = await config.getVersionHistoryMethod({ opportunityId: this.recordId });
             
-            // Map saved versions
+            // Map saved versions (Underground: append " - FINAL" when v.isFinal)
             const savedVersions = versions.map(v => ({
-                label: `Version ${v.versionNumber} - ${this.formatDate(v.createdDate)} - ${v.createdBy}`,
+                label: `Version ${v.versionNumber}${v.isFinal ? ' - FINAL' : ''} - ${this.formatDate(v.createdDate)} - ${v.createdBy}`,
                 value: v.versionId,
                 versionNumber: v.versionNumber,
-                isDraft: false
+                isDraft: false,
+                isFinal: v.isFinal || false
             }));
             
-            // Add draft option at the top
-            const draftOption = {
-                label: `Draft - Version ${config.nextVersionNumber}`,
-                value: 'draft',
-                versionNumber: config.nextVersionNumber,
-                isDraft: true
-            };
+            // Underground / Estimates / SOV / Design: add draft only when no final version exists
+            const hasFinal = (tabName === 'underground' || tabName === 'estimates' || tabName === 'schedule' || tabName === 'design') && config.hasFinalVersion;
+            const versionListOptions = hasFinal
+                ? savedVersions
+                : [
+                    {
+                        label: `Draft - Version ${config.nextVersionNumber}`,
+                        value: 'draft',
+                        versionNumber: config.nextVersionNumber,
+                        isDraft: true
+                    },
+                    ...savedVersions
+                ];
             
-            // Draft always appears first, then saved versions
-            // Update config reactively
+            let selectedId = config.selectedVersionId;
+            if (hasFinal) {
+                if (!selectedId || selectedId === 'draft') {
+                    selectedId = config.finalVersionId;
+                }
+            } else if (!selectedId || selectedId === 'draft') {
+                selectedId = 'draft';
+            }
+            
             this.worksheetConfig = {
                 ...this.worksheetConfig,
                 [tabName]: {
                     ...config,
-                    versionList: [draftOption, ...savedVersions]
+                    versionList: versionListOptions,
+                    selectedVersionId: selectedId
                 }
             };
             
-            // Set draft as default selection if no version is currently selected
             const currentConfig = this.getConfigForTab(tabName);
             if (!currentConfig.selectedVersionId || currentConfig.selectedVersionId === 'draft') {
-                // Update selectedVersionId reactively
-                this.worksheetConfig = {
-                    ...this.worksheetConfig,
-                    [tabName]: {
-                        ...currentConfig,
-                        selectedVersionId: 'draft'
-                    }
-                };
-                // Set versionIdToLoad on children so they load latest (draft) data
+                if ((tabName !== 'underground' && tabName !== 'estimates' && tabName !== 'schedule' && tabName !== 'design') || !currentConfig.hasFinalVersion) {
+                    this.worksheetConfig = {
+                        ...this.worksheetConfig,
+                        [tabName]: {
+                            ...currentConfig,
+                            selectedVersionId: 'draft'
+                        }
+                    };
+                }
+                this.updateChildrenVersionIdForTab(tabName);
+            } else {
                 this.updateChildrenVersionIdForTab(tabName);
             }
+            
+            if (tabName === 'underground' || tabName === 'estimates' || tabName === 'schedule' || tabName === 'design') {
+                this.updateReadOnlyStateForTab(tabName);
+            }
         } catch (error) {
-            console.error(`Error loading version list for ${tabName}:`, error);
             // Even on error, show draft option - update reactively
             this.worksheetConfig = {
                 ...this.worksheetConfig,
@@ -312,6 +404,23 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                 }
             };
         }
+    }
+
+    /**
+     * Update read-only state for a tab (Underground/Estimates: show Mark as Final checkbox when draft and no final)
+     */
+    updateReadOnlyStateForTab(tabName) {
+        if (tabName !== 'underground' && tabName !== 'estimates' && tabName !== 'schedule' && tabName !== 'design') return;
+        const config = this.getConfigForTab(tabName);
+        if (!config) return;
+        const showMarkAsFinalCheckbox = !config.hasFinalVersion && config.selectedVersionId === 'draft';
+        this.worksheetConfig = {
+            ...this.worksheetConfig,
+            [tabName]: {
+                ...config,
+                showMarkAsFinalCheckbox
+            }
+        };
     }
 
     /**
@@ -423,6 +532,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         
         // Pass version ID to child components - they'll auto-reload
         this.updateChildrenVersionIdForTab(tabName);
+        if (tabName === 'underground') {
+            this.updateReadOnlyStateForTab('underground');
+        }
         
         // Show loading state for non-draft versions
         if (newVersionId !== 'draft') {
@@ -445,25 +557,32 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         try {
             return decodeURIComponent(escape(atob(base64Data)));
         } catch (err) {
-            console.error('Decode data failed:', err);
             throw err;
         }
     }
 
     get showSaveUndergroundButton() {
-        return this.activeTab === 'underground';
+        if (this.activeTab !== 'underground') return false;
+        const config = this.getConfigForTab('underground');
+        return config ? !config.hasFinalVersion : true;
     }
 
     get showSaveEstimatesButton() {
-        return this.activeTab === 'estimates';
+        if (this.activeTab !== 'estimates') return false;
+        const config = this.getConfigForTab('estimates');
+        return config ? !config.hasFinalVersion : true;
     }
 
     get showSaveDesignButton() {
-        return this.activeTab === 'design';
+        if (this.activeTab !== 'design') return false;
+        const config = this.getConfigForTab('design');
+        return config ? !config.hasFinalVersion : true;
     }
 
     get showSaveSOVButton() {
-        return this.activeTab === 'schedule';
+        if (this.activeTab !== 'schedule') return false;
+        const config = this.getConfigForTab('schedule');
+        return config ? !config.hasFinalVersion : true;
     }
 
     get isAutoSaving() {
@@ -519,13 +638,95 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     }
 
     /**
-     * Check if version list is disabled
+     * Check if version list is disabled (only when no options; toggling between versions stays enabled)
      */
     get versionListDisabled() {
         const config = this.getCurrentConfig();
         if (!config) return true;
-        // Version list should never be empty since draft is always present
         return config.versionList.length === 0;
+    }
+
+    /**
+     * Underground/Estimates/SOV/Design final version: has a final version been saved?
+     */
+    get currentHasFinalVersion() {
+        if (this.activeTab === 'underground') {
+            const config = this.getConfigForTab('underground');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'estimates') {
+            const config = this.getConfigForTab('estimates');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'schedule') {
+            const config = this.getConfigForTab('schedule');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'design') {
+            const config = this.getConfigForTab('design');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        return false;
+    }
+
+    /**
+     * Underground/Estimates: show "Mark as Final" checkbox when on draft and no final version exists
+     */
+    get currentShowMarkAsFinalCheckbox() {
+        if (this.activeTab === 'underground') {
+            const config = this.getConfigForTab('underground');
+            return config ? !!config.showMarkAsFinalCheckbox : false;
+        }
+        if (this.activeTab === 'estimates') {
+            const config = this.getConfigForTab('estimates');
+            return config ? !!config.showMarkAsFinalCheckbox : false;
+        }
+        return false;
+    }
+
+    /**
+     * Underground/Estimates/SOV/Design: is the worksheet read-only (final version exists)?
+     */
+    get currentIsReadOnly() {
+        if (this.activeTab === 'underground') {
+            const config = this.getConfigForTab('underground');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'estimates') {
+            const config = this.getConfigForTab('estimates');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'schedule') {
+            const config = this.getConfigForTab('schedule');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        if (this.activeTab === 'design') {
+            const config = this.getConfigForTab('design');
+            return config ? !!config.hasFinalVersion : false;
+        }
+        return false;
+    }
+
+    /**
+     * Show Mark as Final checkbox only when on Underground tab
+     */
+    get showMarkAsFinalCheckboxUnderground() {
+        return this.activeTab === 'underground' && !!this.getConfigForTab('underground')?.showMarkAsFinalCheckbox;
+    }
+
+    /**
+     * Show Mark as Final checkbox only when on Estimates tab
+     */
+    get showMarkAsFinalCheckboxEstimate() {
+        return this.activeTab === 'estimates' && !!this.getConfigForTab('estimates')?.showMarkAsFinalCheckbox;
+    }
+
+    get showMarkAsFinalCheckboxSOV() {
+        return this.activeTab === 'schedule' && !!this.getConfigForTab('schedule')?.showMarkAsFinalCheckbox;
+    }
+
+    get showMarkAsFinalCheckboxDesign() {
+        return this.activeTab === 'design' && !!this.getConfigForTab('design')?.showMarkAsFinalCheckbox;
     }
 
     /**
@@ -573,9 +774,16 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     }
 
     async handleSaveUnderground() {
+        const config = this.getConfigForTab('underground');
+        if (config && config.hasFinalVersion) {
+            this.showToast('Error', 'Cannot save: A final version already exists for this worksheet.', 'error');
+            return;
+        }
         this.isSaving = true;
 
         try {
+            const markAsFinalCheckbox = this.template.querySelector('.mark-as-final-checkbox-underground');
+            const markAsFinal = markAsFinalCheckbox ? markAsFinalCheckbox.checked : false;
 
             if (!this.activeSections.includes('sheet1')) {
                 this.activeSections = [...this.activeSections, 'sheet1'];
@@ -599,6 +807,7 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const payload = {
                 worksheetType: 'Underground',
                 version: '1.0',
+                isFinal: markAsFinal,
                 savedDate: new Date().toISOString(),
                 opportunityId: this.recordId,
                 sheet1: sheet1Data,
@@ -616,23 +825,38 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
             const targetId = this.recordId;
 
-            await saveSheet({
+            const versionId = await saveSheet({
                 opportunityId: targetId,
-                base64Data: base64Payload
+                base64Data: base64Payload,
+                markAsFinal: markAsFinal
             });
 
 
-            // Refresh version data after save
-            await this.loadVersionDataForTab('underground');
-            
-            // Set draft as selected after save (user continues working on new draft)
-            const config = this.getConfigForTab('underground');
-            // Get the version number that was just saved (nextVersionNumber - 1, since nextVersionNumber is now the next draft)
-            const savedVersionNumber = config ? (config.nextVersionNumber - 1) : 0;
-            if (config) {
-                config.selectedVersionId = 'draft';
+            if (markAsFinal) {
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    underground: {
+                        ...this.getConfigForTab('underground'),
+                        hasFinalVersion: true,
+                        finalVersionId: versionId,
+                        showMarkAsFinalCheckbox: false,
+                        selectedVersionId: versionId
+                    }
+                };
+                await this.loadVersionListForTab('underground');
+                this.updateChildrenVersionIdForTab('underground');
+                this.updateReadOnlyStateForTab('underground');
+            } else {
+                await this.loadVersionDataForTab('underground');
+                const cfg = this.getConfigForTab('underground');
+                if (cfg) {
+                    this.worksheetConfig = {
+                        ...this.worksheetConfig,
+                        underground: { ...cfg, selectedVersionId: 'draft' }
+                    };
+                }
+                this.updateChildrenVersionIdForTab('underground');
             }
-            // Don't auto-load - user is already working on the draft
 
             const fieldData = await this.extractOpportunityFieldData('underground');
 
@@ -642,9 +866,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                     fieldDataJson: JSON.stringify(fieldData)
                 });
 
-                this.showToast('Success', 'Underground Worksheet saved successfully!', 'success');
+                this.showToast('Success', markAsFinal ? 'Underground Worksheet saved and marked as FINAL!' : 'Underground Worksheet saved successfully!', 'success');
             } else {
-                this.showToast('Success', 'Underground Worksheet saved successfully!', 'success');
+                this.showToast('Success', markAsFinal ? 'Underground Worksheet saved and marked as FINAL!' : 'Underground Worksheet saved successfully!', 'success');
             }
 
         } catch (error) {
@@ -657,11 +881,20 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     }
 
     async handleSaveDesign() {
+        const designConfig = this.getConfigForTab('design');
+        if (designConfig && designConfig.hasFinalVersion) {
+            this.showToast('Error', 'Cannot save: A final version already exists for this worksheet.', 'error');
+            return;
+        }
+
         this.isSaving = true;
 
         try {
 
             await new Promise(resolve => setTimeout(resolve, 100));
+
+            const markAsFinalCheckbox = this.template.querySelector('.mark-as-final-checkbox-design');
+            const markAsFinal = markAsFinalCheckbox ? markAsFinalCheckbox.checked : false;
 
             let designComponent = this.template.querySelector('c-design-worksheet');
 
@@ -689,6 +922,7 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const payload = {
                 worksheetType: 'Design',
                 version: '1.0',
+                isFinal: markAsFinal,
                 savedDate: new Date().toISOString(),
                 opportunityId: this.recordId,
                 formData: designData.formData
@@ -700,19 +934,39 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
             const targetId = this.recordId;
 
-            await saveDesignWorksheet({
+            const versionId = await saveDesignWorksheet({
                 opportunityId: targetId,
-                base64Data: base64Payload
+                base64Data: base64Payload,
+                markAsFinal: markAsFinal
             });
 
 
+            if (markAsFinal) {
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    design: {
+                        ...this.getConfigForTab('design'),
+                        hasFinalVersion: true,
+                        finalVersionId: versionId,
+                        showMarkAsFinalCheckbox: false
+                    }
+                };
+            }
+
             // Refresh version data after save
             await this.loadVersionDataForTab('design');
-            
-            // Set draft as selected after save
-            const designConfig = this.getConfigForTab('design');
-            if (designConfig) {
-                designConfig.selectedVersionId = 'draft';
+
+            if (!markAsFinal) {
+                const designConfigAfter = this.getConfigForTab('design');
+                if (designConfigAfter) {
+                    this.worksheetConfig = {
+                        ...this.worksheetConfig,
+                        design: {
+                            ...designConfigAfter,
+                            selectedVersionId: 'draft'
+                        }
+                    };
+                }
             }
 
             // ⭐ Extract and update Opportunity fields from Design
@@ -720,14 +974,15 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             try {
                 fieldData = await this.extractOpportunityFieldData('design', designData, null);
             } catch (extractError) {
-                console.error('❌ Error extracting field data:', extractError);
                 // Continue with empty fieldData - don't fail the entire save
                 fieldData = {};
             }
 
+            const successMessage = markAsFinal ? 'Design Worksheet saved and marked as FINAL!' : 'Design Worksheet saved successfully!';
+
             // Validate fieldData is an object
             if (!fieldData || typeof fieldData !== 'object' || Array.isArray(fieldData)) {
-                this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
+                this.showToast('Success', successMessage, 'success');
             } else {
                 const fieldKeys = Object.keys(fieldData);
                 if (fieldKeys.length > 0) {
@@ -741,20 +996,23 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             fieldDataJson: fieldDataJson
                         });
 
-                        this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
+                        this.showToast('Success', successMessage, 'success');
                     } catch (updateError) {
-                        console.error('❌ Error updating Opportunity fields:', updateError);
                         // Still show success for saving the worksheet file
                         this.showToast('Warning',
                             'Design Worksheet saved, but failed to update Opportunity fields: ' + (updateError?.body?.message || updateError?.message || 'Unknown error'),
                             'warning');
                     }
                 } else {
-                    this.showToast('Success', 'Design Worksheet saved successfully!', 'success');
+                    this.showToast('Success', successMessage, 'success');
                 }
             }
 
         } catch (error) {
+
+            if (error.body) {
+            }
+
             this.logError('Error saving Design Worksheet', error);
             const message = error?.body?.message || error?.message || 'Unknown error';
             this.showToast('Error', 'Failed to save: ' + message, 'error');
@@ -764,9 +1022,17 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     }
 
     async handleSaveEstimate() {
+        const estimateConfig = this.getConfigForTab('estimates');
+        if (estimateConfig && estimateConfig.hasFinalVersion) {
+            this.showToast('Error', 'Cannot save: A final version already exists for this worksheet.', 'error');
+            return;
+        }
         this.isSaving = true;
 
         try {
+
+            const markAsFinalCheckbox = this.template.querySelector('.mark-as-final-checkbox-estimate');
+            const markAsFinal = markAsFinalCheckbox ? markAsFinalCheckbox.checked : false;
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -793,6 +1059,7 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const payload = {
                 worksheetType: 'Estimate',
                 version: '1.0',
+                isFinal: markAsFinal,
                 savedDate: new Date().toISOString(),
                 opportunityId: this.recordId,
                 section1: estimateData.section1,
@@ -812,19 +1079,37 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
             const targetId = this.recordId;
 
-            await saveEstimateSheet({
+            const versionId = await saveEstimateSheet({
                 opportunityId: targetId,
-                base64Data: base64Payload
+                base64Data: base64Payload,
+                markAsFinal: markAsFinal
             });
 
 
-            // Refresh version data after save
-            await this.loadVersionDataForTab('estimates');
-            
-            // Set draft as selected after save
-            const estimateConfig = this.getConfigForTab('estimates');
-            if (estimateConfig) {
-                estimateConfig.selectedVersionId = 'draft';
+            if (markAsFinal) {
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    estimates: {
+                        ...this.getConfigForTab('estimates'),
+                        hasFinalVersion: true,
+                        finalVersionId: versionId,
+                        showMarkAsFinalCheckbox: false,
+                        selectedVersionId: versionId
+                    }
+                };
+                await this.loadVersionListForTab('estimates');
+                this.updateChildrenVersionIdForTab('estimates');
+                this.updateReadOnlyStateForTab('estimates');
+            } else {
+                await this.loadVersionDataForTab('estimates');
+                const cfg = this.getConfigForTab('estimates');
+                if (cfg) {
+                    this.worksheetConfig = {
+                        ...this.worksheetConfig,
+                        estimates: { ...cfg, selectedVersionId: 'draft' }
+                    };
+                }
+                this.updateChildrenVersionIdForTab('estimates');
             }
 
             // ⭐ Extract and update Opportunity fields from Estimate
@@ -837,9 +1122,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                     fieldDataJson: JSON.stringify(fieldData)
                 });
 
-                this.showToast('Success', 'Estimate Worksheet saved successfully!', 'success');
+                this.showToast('Success', markAsFinal ? 'Estimate Worksheet saved and marked as FINAL!' : 'Estimate Worksheet saved successfully!', 'success');
             } else {
-                this.showToast('Success', 'Estimate Worksheet saved successfully!', 'success');
+                this.showToast('Success', markAsFinal ? 'Estimate Worksheet saved and marked as FINAL!' : 'Estimate Worksheet saved successfully!', 'success');
             }
 
         } catch (error) {
@@ -852,11 +1137,20 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
     }
 
     async handleSaveSOV() {
+        const scheduleConfig = this.getConfigForTab('schedule');
+        if (scheduleConfig && scheduleConfig.hasFinalVersion) {
+            this.showToast('Error', 'Cannot save: A final version already exists for this worksheet.', 'error');
+            return;
+        }
+
         this.isSaving = true;
 
         try {
 
             await new Promise(resolve => setTimeout(resolve, 100));
+
+            const markAsFinalCheckbox = this.template.querySelector('.mark-as-final-checkbox-sov');
+            const markAsFinal = markAsFinalCheckbox ? markAsFinalCheckbox.checked : false;
 
             let sovComponent = this.template.querySelector('c-schedule-of-values');
 
@@ -879,6 +1173,7 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const payload = {
                 worksheetType: 'ScheduleOfValues',
                 version: '1.0',
+                isFinal: markAsFinal,
                 savedDate: new Date().toISOString(),
                 opportunityId: this.recordId,
                 jobOverview: sovData.jobOverview || {},
@@ -895,19 +1190,39 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }
             const targetId = this.recordId;
 
-            await saveSOVSheet({
+            const versionId = await saveSOVSheet({
                 opportunityId: targetId,
-                base64Data: base64Payload
+                base64Data: base64Payload,
+                markAsFinal: markAsFinal
             });
 
 
+            if (markAsFinal) {
+                this.worksheetConfig = {
+                    ...this.worksheetConfig,
+                    schedule: {
+                        ...this.getConfigForTab('schedule'),
+                        hasFinalVersion: true,
+                        finalVersionId: versionId,
+                        showMarkAsFinalCheckbox: false
+                    }
+                };
+            }
+
             // Refresh version data after save
             await this.loadVersionDataForTab('schedule');
-            
-            // Set draft as selected after save
-            const sovConfig = this.getConfigForTab('schedule');
-            if (sovConfig) {
-                sovConfig.selectedVersionId = 'draft';
+
+            if (!markAsFinal) {
+                const sovConfig = this.getConfigForTab('schedule');
+                if (sovConfig) {
+                    this.worksheetConfig = {
+                        ...this.worksheetConfig,
+                        schedule: {
+                            ...sovConfig,
+                            selectedVersionId: 'draft'
+                        }
+                    };
+                }
             }
 
             // ⭐ Extract and update Opportunity fields from SOV
@@ -918,14 +1233,15 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                     summary: payload.summary
                 });
             } catch (extractError) {
-                console.error('❌ Error extracting field data:', extractError);
                 // Continue with empty fieldData - don't fail the entire save
                 fieldData = {};
             }
 
+            const successMessage = markAsFinal ? 'Schedule of Values saved and marked as FINAL!' : 'Schedule of Values saved successfully!';
+
             // Validate fieldData is an object
             if (!fieldData || typeof fieldData !== 'object' || Array.isArray(fieldData)) {
-                this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
+                this.showToast('Success', successMessage, 'success');
             } else {
                 const fieldKeys = Object.keys(fieldData);
                 if (fieldKeys.length > 0) {
@@ -939,16 +1255,15 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
                             fieldDataJson: fieldDataJson
                         });
 
-                        this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
+                        this.showToast('Success', successMessage, 'success');
                     } catch (updateError) {
-                        console.error('❌ Error updating Opportunity fields:', updateError);
                         // Still show success for saving the worksheet file
                         this.showToast('Warning',
                             'Schedule of Values saved, but failed to update Opportunity fields: ' + (updateError?.body?.message || updateError?.message || 'Unknown error'),
                             'warning');
                     }
                 } else {
-                    this.showToast('Success', 'Schedule of Values saved successfully!', 'success');
+                    this.showToast('Success', successMessage, 'success');
                 }
             }
 
@@ -970,6 +1285,128 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         this.dispatchEvent(event);
     }
 
+    /**
+     * Handle Download CSV for the entire Underground tab (Sheet 1 + Sheet 2)
+     */
+    async handleDownloadUndergroundCSV() {
+        try {
+
+            // Ensure components are in DOM (expand sections if needed, though they might already be there)
+            let sheet1Component = this.template.querySelector('c-bid-worksheet-underground');
+            let sheet2Component = this.template.querySelector('c-bid-worksheet-underground-two');
+
+            if (!sheet1Component || !sheet2Component) {
+                this.showToast('Error', 'Components not found. Please ensure the Underground tab is active.', 'error');
+                return;
+            }
+
+            const sheet1Data = await sheet1Component.saveSheet();
+            const sheet2Data = await sheet2Component.saveSheet();
+
+            const csvContent = this.convertToUndergroundCSV(sheet1Data, sheet2Data);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const filename = `Underground_Estimate_Full_${dateStr}.csv`;
+            
+            this.downloadCSVFile(csvContent, filename);
+        } catch (error) {
+            this.showToast('Error', 'Failed to export CSV: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Merge Sheet 1 and Sheet 2 data into one CSV
+     */
+    convertToUndergroundCSV(s1, s2) {
+        const lines = [];
+        const dateStr = new Date().toLocaleDateString('en-US');
+
+        // --- SHEET 1 SECTION ---
+        lines.push(`UNDERGROUND ESTIMATE SHEET #1,Export Date: ${dateStr}`);
+        lines.push('DESCRIPTION,SIZE,AMOUNT,UNIT #,GROSS $,,DESCRIPTION,SIZE,AMOUNT,UNIT #,GROSS $');
+
+        if (s1.lineItems) {
+            s1.lineItems.forEach(row => {
+                const rowValues = [
+                    this.formatCSVValue(row.left.description),
+                    this.formatCSVValue(row.left.size),
+                    this.formatCSVValue(row.left.amount),
+                    this.formatCSVValue(row.left.unitPrice),
+                    this.formatCSVValue(row.left.gross),
+                    '',
+                    this.formatCSVValue(row.right.description),
+                    this.formatCSVValue(row.right.size),
+                    this.formatCSVValue(row.right.amount),
+                    this.formatCSVValue(row.right.unitPrice),
+                    this.formatCSVValue(row.right.gross)
+                ];
+                lines.push(rowValues.join(','));
+            });
+        }
+        lines.push(`SUB TOTAL SHT. #1,,,,${s1.subTotal || '0.00'}`);
+        lines.push(''); // Spacer between sheets
+        lines.push('');
+
+        // --- SHEET 2 SECTION ---
+        lines.push(`UNDERGROUND ESTIMATE SHEET #2`);
+        lines.push('DESCRIPTION,AMOUNT,UNIT #,GROSS $,,DESCRIPTION,AMOUNT,UNIT #,GROSS $');
+
+        if (s2.lineItems) {
+            s2.lineItems.forEach(row => {
+                const rowValues = [
+                    this.formatCSVValue(row.left.description),
+                    this.formatCSVValue(row.left.amount),
+                    this.formatCSVValue(row.left.unitPrice),
+                    this.formatCSVValue(row.left.gross),
+                    ''
+                ];
+
+                if (row.right.isCommentRow) {
+                    rowValues.push(this.formatCSVValue(row.right.description));
+                    rowValues.push('');
+                    rowValues.push('');
+                    rowValues.push('');
+                } else {
+                    rowValues.push(this.formatCSVValue(row.right.description));
+                    rowValues.push(this.formatCSVValue(row.right.amount));
+                    rowValues.push(this.formatCSVValue(row.right.unitPrice));
+                    rowValues.push(this.formatCSVValue(row.right.gross));
+                }
+                lines.push(rowValues.join(','));
+            });
+        }
+        
+        lines.push('');
+        lines.push(`TOTAL UNDERGROUND PRICE,,,,${s2.totalUndergroundPrice || '0.00'}`);
+
+        return lines.join('\n');
+    }
+
+    formatCSVValue(val) {
+        if (val === null || val === undefined) return '';
+        let stringVal = String(val);
+        stringVal = stringVal.replace(/"/g, '""');
+        if (stringVal.includes(',') || stringVal.includes('\n') || stringVal.includes('"')) {
+            stringVal = `"${stringVal}"`;
+        }
+        return stringVal;
+    }
+
+    downloadCSVFile(csvContent, filename) {
+        const blob = new Blob([csvContent], { type: 'text/plain' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            // Clean up URL object after a short delay
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        }
+    }
+
     encodeData(data) {
         try {
             const json = JSON.stringify(data);
@@ -982,13 +1419,13 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
     logError(context, error) {
         const safeMsg = error?.body?.message || error?.message || String(error);
-        console.error(`❌ ${context}:`, safeMsg, error);
     }
 
     /**
      * Generic cell change handler (for native HTML inputs using oninput)
      */
     handleCellChangeGeneric(event) {
+        // ⭐ DEBUG: Log all cellchange events
         
         // Don't trigger autosave during initialization or version loading
         if (this._isInitializing || this.isLoadingVersion) {
@@ -997,6 +1434,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         
         const config = this.getCurrentConfig();
         if (!config) {
+            return;
+        }
+        if ((this.activeTab === 'underground' || this.activeTab === 'estimates' || this.activeTab === 'schedule' || this.activeTab === 'design') && config.hasFinalVersion) {
             return;
         }
         
@@ -1044,6 +1484,9 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
         
         const config = this.getConfigForTab(tabName);
         if (!config || !this.recordId) {
+            return;
+        }
+        if ((tabName === 'underground' || tabName === 'estimates' || tabName === 'schedule' || tabName === 'design') && config.hasFinalVersion) {
             return;
         }
 
@@ -1211,7 +1654,6 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             }, 2000);
 
         } catch (error) {
-            console.error(`Error during auto-save for ${tabName}:`, error);
             this.worksheetConfig = {
                 ...this.worksheetConfig,
                 [tabName]: {
@@ -1303,6 +1745,18 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const i155 = findItem(155, 'Left');
             if (i155) {
                 fieldData.GRAND_TOTAL_MATERIAL_COST__c = getDecimal(i155, 'gross');
+            }
+
+            // Row 133 - Grand Total Material Cost Description (Right, Description) - for GRAND_TOTAL_MATERIAL_COST_DESC__c
+            const r133 = findItem(133, 'Right');
+            if (r133 && r133.description) {
+                fieldData.GRAND_TOTAL_MATERIAL_COST_DESC__c = r133.description;
+            }
+
+            // Row 182 - Total Labor Hrs Description (Left, Description) - for TOTAL_LABOR_HRS_DESC__c
+            const i182 = findItem(182, 'Left');
+            if (i182 && i182.description) {
+                fieldData.TOTAL_LABOR_HRS_DESC__c = i182.description;
             }
 
             // Row 157 - Head Count (Left, Size field contains headcount) - Column C
@@ -1429,6 +1883,12 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
             const r178 = findItem(178, 'Right');
             if (r178) {
                 fieldData.COST_PER_SQUARE_FOOT__c = getDecimal(r178, 'gross');
+            }
+
+            // Row 152 - MATERIAL, PRMT., EQUIP... (Right, Gross) - Column R
+            const r152 = findItem(152, 'Right');
+            if (r152) {
+                fieldData.Material__c = getDecimal(r152, 'gross');
             }
 
             return fieldData;
@@ -1655,10 +2115,10 @@ export default class BidWorksheetUndergroundParent extends LightningElement {
 
             // 27. Fire Pump (STRING 120) - Combined field
             let firePumpParts = [];
-            if (form.firePumpGpm === true) firePumpParts.push('GPM');
-            if (form.firePumpPsi === true) firePumpParts.push('PSI');
-            if (form.firePumpVoltage === true) firePumpParts.push('Voltage');
-            if (form.firePumpTransferSwitch === true) firePumpParts.push('Transfer Switch');
+            if (form.firePumpGpm) firePumpParts.push('GPM = ' + form.firePumpGpm);
+            if (form.firePumpPsi) firePumpParts.push('PSI = ' + form.firePumpPsi);
+            if (form.firePumpVoltage) firePumpParts.push('Voltage = ' + form.firePumpVoltage);
+            if (form.firePumpTransferSwitch) firePumpParts.push('Transfer Switch = ' + form.firePumpTransferSwitch);
             if (firePumpParts.length > 0) {
                 addStringField('Fire_Pump__c', firePumpParts.join(', '), 120);
             }

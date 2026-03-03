@@ -23,10 +23,24 @@
     color: #706e6b;
     font-weight: 400;
 }
+
 /* Section Amount in Accordion Label */
 .section-amount {
     margin-left: 8px;
     font-weight: 600;
+}
+
+.section-label-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding-right: 16px;
+}
+
+.download-button {
+    --lwc-buttonColorBorderPrimary: #1589ee;
+    margin-bottom: 2px;
 }
 
 /* Table wrapper */
@@ -70,8 +84,8 @@
 }
 
 .col-size {
-    width: 8%;
-    min-width: 70px;
+    width: 14%;
+    min-width: 180px;
     text-align: center;
 }
 
@@ -262,7 +276,8 @@ td.readonly-cell lightning-formatted-number {
 }
 
 .total-row .cell-input[readonly] {
-    font-weight: 600;  /* Ensure consistent weight, not additive */
+    font-weight: 600;
+    /* Ensure consistent weight, not additive */
 }
 
 /* Remove spinner from number inputs */
@@ -281,20 +296,20 @@ td.readonly-cell lightning-formatted-number {
     .estimate-table {
         font-size: 0.75rem;
     }
-    
+
     .col-description {
         min-width: 160px;
     }
-    
+
     .col-size {
-        min-width: 60px;
+        min-width: 140px;
     }
-    
+
     .col-quantity,
     .col-unit {
         min-width: 60px;
     }
-    
+
     .col-gross {
         min-width: 80px;
     }
@@ -304,3 +319,29 @@ td.readonly-cell lightning-formatted-number {
 .estimate-table tbody tr:hover {
     background-color: #f9f9f9;
 } */
+
+/* Read-only (final) sheet: disabled inputs match non-editable cell styling */
+.readonly-sheet .cell-input:disabled,
+.readonly-sheet input.cell-input:disabled {
+    background-color: #f3f3f3;
+    color: #000000;
+    font-weight: 500;
+    cursor: default;
+    -webkit-text-fill-color: #000000;
+}
+
+.readonly-sheet .cell-input:disabled:focus {
+    outline: none;
+    background-color: #f3f3f3;
+}
+
+.readonly-sheet textarea.cell-textarea:disabled {
+    background-color: #f3f3f3;
+    color: #000000;
+    cursor: default;
+}
+
+.readonly-sheet textarea.cell-textarea:disabled:focus {
+    outline: none;
+    background-color: #f3f3f3;
+}

@@ -1,4 +1,16 @@
 /* designworksheet.css */
+
+/* Read-only (final version): cursor and subtle opacity */
+.readonly-sheet {
+    cursor: not-allowed;
+}
+.readonly-sheet .excel-table {
+    opacity: 0.98;
+}
+.readonly-sheet input:disabled {
+    cursor: not-allowed;
+}
+
 /* Simple fields above table */
 .simple-field {
     margin-bottom: 0.5rem;
@@ -13,6 +25,12 @@
     margin-bottom: 16px;
     border-bottom: 2px solid #dddbda;
     background-color: #fafaf9;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 .sheet-title {
@@ -199,6 +217,25 @@ tr.section-purple:first-of-type td {
 
 .section-purple .label-col {
     background-color: #b366ff !important;
+}
+
+/* Label inputs */
+.label-input {
+    width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+    text-align: left !important;
+    color: inherit !important;
+    text-transform: uppercase;
+}
+
+.label-input:focus {
+    outline: 2px solid #1589ee !important;
+    background-color: #fef8e8 !important;
+    color: #3e3e3c !important;
 }
 
 /* Native checkbox styling */

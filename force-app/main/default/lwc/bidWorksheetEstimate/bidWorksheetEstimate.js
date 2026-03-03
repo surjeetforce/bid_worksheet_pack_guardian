@@ -7,6 +7,7 @@ import loadVersionById_Estimate from '@salesforce/apex/BidWorksheetUndergroundCo
 
 export default class BidWorksheetEstimate extends LightningElement {
     @api recordId;
+    @api isReadOnly = false;
 
     @track section1Rows = [];
     @track section2Rows = [];
@@ -27,6 +28,7 @@ export default class BidWorksheetEstimate extends LightningElement {
     _versionIdToLoad = null;
     _lastLoadedVersionId = null;
     _isLoadingData = false;
+    _editingCell = null; // { section, rowId, col, field }
 
     @api
     get versionIdToLoad() {
@@ -38,16 +40,17 @@ export default class BidWorksheetEstimate extends LightningElement {
         // Normalize empty string to null for comparison
         const normalizedOldValue = oldValue === '' ? null : oldValue;
         const normalizedNewValue = value === '' ? null : value;
-        
+
         this._versionIdToLoad = value;
-        
+
+
         // Check if rows are initialized
         const rowsReady = this.section1Rows.length > 0 || this.section2Rows.length > 0 || this.section3Rows.length > 0;
-        
+
         if (!rowsReady) {
             return;
         }
-        
+
         // Always reload if:
         // 1. lastLoaded is null (first time load) - ALWAYS reload on first load
         // 2. OR value actually changed (normalized comparison)
@@ -55,11 +58,11 @@ export default class BidWorksheetEstimate extends LightningElement {
         const isFirstLoad = this._lastLoadedVersionId === null;
         const valueChanged = normalizedNewValue !== normalizedOldValue;
         const isDifferentVersion = normalizedNewValue !== this._lastLoadedVersionId;
-        
+
         // On first load, always reload regardless of valueChanged
         // Otherwise, reload if value changed AND it's a different version
         const shouldReload = isFirstLoad || (valueChanged && isDifferentVersion);
-        
+
         if (shouldReload) {
             this._lastLoadedVersionId = normalizedNewValue;
             // Don't reload if user is actively editing
@@ -103,9 +106,57 @@ export default class BidWorksheetEstimate extends LightningElement {
         187: { left: { size: true } }, // FABRICATION QUARTER HOUR PER - size field is editable
     };
 
+    // ========================================
+    // HIGH PRECISION SIZE FIELD CONFIGURATION
+    // ========================================
+    // Format: { rowNumber: { side: precision } }
+    // The value is the number of significant digits to display (e.g., 20, 15, 10).
+    // Rows NOT listed here default to 2 decimal places.
+    static HIGH_PRECISION_SIZE_FIELDS = {
+        184: { left: 20 },  // LABOR (FM+ 7TH PERIOD)
+        185: { left: 20 },  // ENGINEERING HALF HOUR HEAD
+        186: { left: 20 },  // BIM
+        187: { left: 20 },  // FABRICATION QUARTER HOUR PER
+    };
+
+    get section1Label() {
+        return 'Overhead Items';
+    }
+
+    get section2Label() {
+        return 'Couplings & Clamps';
+    }
+
+    get section3Label() {
+        return 'Totals & Materials';
+    }
+
+    get sheetWrapperClass() {
+        return 'estimate-table-wrapper' + (this.isReadOnly ? ' readonly-sheet' : '');
+    }
+
     get currentDate() {
         const today = new Date();
         return today.toLocaleDateString('en-US');
+    }
+
+    /**
+     * Format a size value based on whether the row requires high precision.
+     * Reads the precision from HIGH_PRECISION_SIZE_FIELDS config.
+     * If a row/side is configured with a precision (e.g., 20), it uses toFixed(n)
+     *
+     * @param {number} value - The raw numeric size value to format
+     * @param {number} excelRow - The excel row number to look up in config
+     * @param {string} side - 'left' or 'right'
+     * @returns {string} The formatted size string
+     */
+    formatSizeValue(value, excelRow, side) {
+        const config = BidWorksheetEstimate.HIGH_PRECISION_SIZE_FIELDS[excelRow];
+        const precision = config ? config[side] : null;
+        if (precision) {
+            return value.toFixed(precision);
+        }
+        return value.toFixed(2);
     }
 
     connectedCallback() {
@@ -135,7 +186,7 @@ export default class BidWorksheetEstimate extends LightningElement {
 
         try {
             let base64Data;
-            
+
             // If versionIdToLoad is set, load that specific version
             if (this.versionIdToLoad && this.versionIdToLoad !== 'draft') {
                 base64Data = await loadVersionById_Estimate({ versionId: this.versionIdToLoad });
@@ -160,7 +211,6 @@ export default class BidWorksheetEstimate extends LightningElement {
             const errorMessage = error?.body?.message || error?.message || String(error);
             if (errorMessage.includes('not found') || errorMessage.includes('No ContentVersion') || errorMessage.includes('List has no rows')) {
             } else {
-                console.error('❌ [LOAD Estimate] Error loading estimate data:', error);
             }
         } finally {
             // Clear loading flag after a delay to allow DOM to settle
@@ -197,6 +247,7 @@ export default class BidWorksheetEstimate extends LightningElement {
 
         this.calculateTotals();
 
+
         // Clear loading flag after a delay
         setTimeout(() => {
             this._isLoadingData = false;
@@ -218,39 +269,41 @@ export default class BidWorksheetEstimate extends LightningElement {
                     if (item.size !== undefined && item.size !== null) {
                         row[side].size = item.size || '';
                     }
+                    if (item.sizeUserEntered !== undefined) {
+                        row[side].sizeUserEntered = item.sizeUserEntered;
+                    }
                     row[side].quantityRaw = item.quantity || '';
+                    if (item.quantityUserEntered !== undefined) {
+                        row[side].quantityUserEntered = item.quantityUserEntered;
+                    }
                     if (row[side].isWholeNumberQuantity && item.quantity) {
                         row[side].quantity = Math.round(item.quantity).toString();
                     } else {
                         row[side].quantity = item.quantity || '';
                     }
-                    row[side].unitPrice = item.unitPrice || '';
-                    row[side].gross = item.gross || '';
-
-                    if (!row[side].descriptionReadonly && item.description) {
-                        row[side].description = item.description;
-
-                        // ⭐ Update readonly states based on description
-                        const hasDescription = item.description && item.description.trim() !== '';
-                        if (!row[side].isTotalRow) {
-                            row[side].quantityReadonly = !hasDescription;
-                            row[side].unitPriceReadonly = !hasDescription;
-                            row[side].grossReadonly = !hasDescription;
-
-                            // Update class properties to reflect readonly state
-                            row[side].quantityClass = !hasDescription ? 'readonly-cell' : '';
-                            row[side].unitPriceClass = !hasDescription ? 'col-unit readonly-cell' : 'col-unit';
-                            row[side].descriptionClass = hasDescription ? 'description-cell readonly-cell' : 'description-cell';
+                    // Format percentage unitPrice to 5 decimals
+                    if (row[side].unitPriceFieldType === 'Percentage' && item.unitPrice) {
+                        const numValue = parseFloat(item.unitPrice);
+                        if (!isNaN(numValue)) {
+                            row[side].unitPrice = numValue.toFixed(5);
+                        } else {
+                            row[side].unitPrice = '0';
                         }
                     } else {
-                        // Update class properties even if description didn't change
-                        const hasDescription = !!(row[side].description && row[side].description.trim());
-                        const isTotalRow = row[side].isTotalRow || false;
-                        const isReadonly = isTotalRow || !hasDescription;
-
-                        row[side].quantityClass = isReadonly ? 'readonly-cell' : '';
-                        row[side].unitPriceClass = isReadonly ? 'col-unit readonly-cell' : 'col-unit';
+                        row[side].unitPrice = item.unitPrice || '';
                     }
+                    row[side].gross = item.gross || '';
+
+                    if (item.description) {
+                        row[side].description = item.description;
+                    }
+
+                    // Update class properties to match the new "always editable" policy
+                    const isTotalRow = row[side].isTotalRow || false;
+                    row[side].quantityClass = isTotalRow ? 'readonly-cell' : '';
+                    row[side].unitPriceClass = isTotalRow ? 'col-unit readonly-cell' : 'col-unit';
+                    row[side].descriptionClass = isTotalRow ? 'description-cell readonly-cell' : 'description-cell';
+                    row[side].sizeClass = isTotalRow ? 'readonly-cell' : '';
                 }
             }
         });
@@ -261,29 +314,29 @@ export default class BidWorksheetEstimate extends LightningElement {
         if (data) {
             // Set loading flag first to prevent autosave during initialization
             this._isLoadingData = true;
-            
+
             this.initializeDataFromMetadata(data);
             this.isLoading = false;
-            
+
             // Load saved data after metadata is loaded and rows are initialized
             setTimeout(() => {
+
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
-                const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
-                    ? this._versionIdToLoad 
+                const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '')
+                    ? this._versionIdToLoad
                     : 'draft';
-                
+
                 // Reset to force load and trigger setter
                 this._lastLoadedVersionId = null;
                 this.versionIdToLoad = versionToLoad;
-                
+
                 // Clear flag after initialization completes
                 setTimeout(() => {
                     this._isLoadingData = false;
                 }, 1500);
             }, 100);
         } else if (error) {
-            console.error('Error loading metadata:', error);
             this.showToast('Error', 'Failed to load estimate data', 'error');
             this.isLoading = false;
             this._isLoadingData = false;
@@ -294,6 +347,7 @@ export default class BidWorksheetEstimate extends LightningElement {
         const section1Items = [];
         const section2Items = [];
         const section3Items = [];
+
 
         metadataItems.forEach((item, index) => {
             const section = item.section || this.inferSection(item);
@@ -311,6 +365,8 @@ export default class BidWorksheetEstimate extends LightningElement {
         this.section2Rows = section2Items;
         this.section3Rows = section3Items;
 
+
+
         // Run calculations to set readonly states for calculated rows (like row 178)
         this.calculateTotals();
     }
@@ -320,10 +376,7 @@ export default class BidWorksheetEstimate extends LightningElement {
     }
 
     createRowFromMetadata(data, id) {
-        const leftDescEmpty = !data.left.description || data.left.description.trim() === '';
-        const rightDescEmpty = !data.right.description || data.right.description.trim() === '';
-
-        // Check if this is a total/calculated row
+        // Check if this is a total/calculated row from metadata
         const leftIsTotalOrCalculated = data.left.isTotalRow;
         const rightIsTotalOrCalculated = data.right.isTotalRow;
 
@@ -337,50 +390,69 @@ export default class BidWorksheetEstimate extends LightningElement {
         const leftEditableOverrides = rowEditableOverrides.left || {};
         const rightEditableOverrides = rowEditableOverrides.right || {};
 
-        // Determine readonly states with overrides
-        const leftQuantityReadonly = leftEditableOverrides.quantity ? false : (leftIsTotalOrCalculated || leftDescEmpty);
-        const leftUnitPriceReadonly = leftEditableOverrides.unitPrice ? false : (leftIsTotalOrCalculated || leftDescEmpty);
-        const leftSizeReadonly = leftEditableOverrides.size ? false : true; // Default: size is readonly
-        const leftDescriptionReadonly = leftEditableOverrides.description ? false : (!!data.left.description || data.left.isReadonly);
+        // Determine readonly states: Default to false (editable) unless it's a total/calculated row
+        // Size is now editable by default unless overridden or calculated
+        const leftQuantityReadonly = leftEditableOverrides.quantity ? false : leftIsTotalOrCalculated;
+        const leftUnitPriceReadonly = leftEditableOverrides.unitPrice ? false : leftIsTotalOrCalculated;
+        const leftSizeReadonly = leftEditableOverrides.size ? false : leftIsTotalOrCalculated;
+        const leftDescriptionReadonly = leftEditableOverrides.description ? false : leftIsTotalOrCalculated;
 
-        const rightQuantityReadonly = rightEditableOverrides.quantity ? false : (rightIsTotalOrCalculated || rightDescEmpty);
-        const rightUnitPriceReadonly = rightEditableOverrides.unitPrice ? false : (rightIsTotalOrCalculated || rightDescEmpty);
-        const rightSizeReadonly = rightEditableOverrides.size ? false : true; // Default: size is readonly
-        const rightDescriptionReadonly = rightEditableOverrides.description ? false : (!!data.right.description || data.right.isReadonly);
+        const rightQuantityReadonly = rightEditableOverrides.quantity ? false : rightIsTotalOrCalculated;
+        const rightUnitPriceReadonly = rightEditableOverrides.unitPrice ? false : rightIsTotalOrCalculated;
+        const rightSizeReadonly = rightEditableOverrides.size ? false : rightIsTotalOrCalculated;
+        const rightDescriptionReadonly = rightEditableOverrides.description ? false : rightIsTotalOrCalculated;
 
         return {
             id: id,
             excelRow: data.excelRow || null,
-            rowClass: data.left.isTotalRow || data.right.isTotalRow ? 'total-row' : '',
+            rowClass: leftIsTotalOrCalculated || rightIsTotalOrCalculated ? 'total-row' : '',
             left: {
                 description: data.left.description || '',
                 descriptionReadonly: leftDescriptionReadonly,
                 size: data.left.size || '',
-                sizeReadonly: leftSizeReadonly, // ⭐ Configurable: can be overridden by EDITABLE_FIELD_OVERRIDES
+                sizeReadonly: leftSizeReadonly,
                 quantity: '',
-                quantityRaw: '', // ⭐ Precise decimal value for calculations
-                unitPrice: data.left.defaultUnitPrice || '',
+                quantityRaw: '',
+                unitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.left.unitPriceFieldType === 'Percentage' && data.left.defaultUnitPrice) {
+                        const numValue = parseFloat(data.left.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.left.defaultUnitPrice || '';
+                })(),
                 unitPriceReadonly: leftUnitPriceReadonly,
-                defaultUnitPrice: data.left.defaultUnitPrice,
+                defaultUnitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.left.unitPriceFieldType === 'Percentage' && data.left.defaultUnitPrice) {
+                        const numValue = parseFloat(data.left.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.left.defaultUnitPrice || '';
+                })(),
                 gross: '',
-                grossReadonly: true, // ⭐ ALWAYS readonly - it's calculated
+                grossReadonly: true, // ALWAYS calculated
                 unitPriceFieldType: data.left.unitPriceFieldType || 'Currency',
+                isPercentageUnitPrice: data.left.unitPriceFieldType === 'Percentage',
                 grossFieldType: data.left.grossFieldType || 'Currency',
                 quantityReadonly: leftQuantityReadonly,
-                quantityUserEntered: false, // ⭐ Track if user manually entered quantity
-                sizeUserEntered: false, // ⭐ Track if user manually entered size
-                isTotalRow: data.left.isTotalRow,
+                quantityUserEntered: false,
+                sizeUserEntered: false,
+                isTotalRow: leftIsTotalOrCalculated,
                 descriptionClass: leftDescriptionReadonly ? 'description-cell readonly-cell' : 'description-cell',
                 sizeClass: leftSizeReadonly ? 'readonly-cell' : '',
                 quantityClass: leftQuantityReadonly ? 'readonly-cell' : '',
                 unitPriceClass: leftUnitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit',
-                // Whole number flags for formatting
                 isWholeNumberQuantity: leftWholeNumber.quantity || false,
                 isWholeNumberUnitPrice: leftWholeNumber.unitPrice || false,
                 isWholeNumberGross: leftWholeNumber.gross || false,
-                // Currency flag for formatting
                 isCurrencyGross: (data.left.grossFieldType || 'Currency') === 'Currency',
-                // Computed fraction digits for HTML (expressions not allowed in HTML)
                 grossMinFractionDigits: leftWholeNumber.gross ? 0 : 2,
                 grossMaxFractionDigits: leftWholeNumber.gross ? 0 : 2
             },
@@ -388,32 +460,50 @@ export default class BidWorksheetEstimate extends LightningElement {
                 description: data.right.description || '',
                 descriptionReadonly: rightDescriptionReadonly,
                 size: data.right.size || '',
-                sizeReadonly: rightSizeReadonly, // ⭐ Configurable: can be overridden by EDITABLE_FIELD_OVERRIDES
+                sizeReadonly: rightSizeReadonly,
                 quantity: '',
-                quantityRaw: '', // ⭐ Precise decimal value for calculations
-                unitPrice: data.right.defaultUnitPrice || '',
+                quantityRaw: '',
+                unitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.right.unitPriceFieldType === 'Percentage' && data.right.defaultUnitPrice) {
+                        const numValue = parseFloat(data.right.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.right.defaultUnitPrice || '';
+                })(),
                 unitPriceReadonly: rightUnitPriceReadonly,
-                defaultUnitPrice: data.right.defaultUnitPrice,
+                defaultUnitPrice: (() => {
+                    // Format percentage defaultUnitPrice to 5 decimals
+                    if (data.right.unitPriceFieldType === 'Percentage' && data.right.defaultUnitPrice) {
+                        const numValue = parseFloat(data.right.defaultUnitPrice);
+                        if (!isNaN(numValue)) {
+                            return numValue.toFixed(5);
+                        }
+                        return '0';
+                    }
+                    return data.right.defaultUnitPrice || '';
+                })(),
                 gross: '',
-                grossReadonly: true, // ⭐ ALWAYS readonly - it's calculated
+                grossReadonly: true, // ALWAYS calculated
                 unitPriceFieldType: data.right.unitPriceFieldType || 'Currency',
+                isPercentageUnitPrice: data.right.unitPriceFieldType === 'Percentage',
                 grossFieldType: data.right.grossFieldType || 'Currency',
                 quantityReadonly: rightQuantityReadonly,
-                quantityUserEntered: false, // ⭐ Track if user manually entered quantity
-                sizeUserEntered: false, // ⭐ Track if user manually entered size
-                isTotalRow: data.right.isTotalRow,
+                quantityUserEntered: false,
+                sizeUserEntered: false,
+                isTotalRow: rightIsTotalOrCalculated,
                 isCommentRow: data.right.isCommentRow,
                 descriptionClass: rightDescriptionReadonly ? 'description-cell readonly-cell' : 'description-cell',
                 sizeClass: rightSizeReadonly ? 'readonly-cell' : '',
                 quantityClass: rightQuantityReadonly ? 'readonly-cell' : '',
                 unitPriceClass: rightUnitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit',
-                // Whole number flags for formatting
                 isWholeNumberQuantity: rightWholeNumber.quantity || false,
                 isWholeNumberUnitPrice: rightWholeNumber.unitPrice || false,
                 isWholeNumberGross: rightWholeNumber.gross || false,
-                // Currency flag for formatting (check grossFieldType)
                 isCurrencyGross: (data.right.grossFieldType || 'Currency') === 'Currency',
-                // Computed fraction digits for HTML (expressions not allowed in HTML)
                 grossMinFractionDigits: (rightWholeNumber.gross ? 0 : 2),
                 grossMaxFractionDigits: (rightWholeNumber.gross ? 0 : 2)
             }
@@ -421,17 +511,17 @@ export default class BidWorksheetEstimate extends LightningElement {
     }
 
     handleCellChange(event) {
-        // Set flag to indicate user is actively editing
         this._isUserEditing = true;
-        
+
         // Clear any existing timeout
         if (this._editingTimeout) {
             clearTimeout(this._editingTimeout);
         }
-        
+
         // Clear the flag after 1 second of no activity
         this._editingTimeout = setTimeout(() => {
             this._isUserEditing = false;
+            this._editingCell = null;
         }, 1000);
 
         const section = parseInt(event.target.dataset.section);
@@ -440,107 +530,165 @@ export default class BidWorksheetEstimate extends LightningElement {
         const field = event.target.dataset.field;
         const value = event.target.value;
 
+        this._editingCell = { section, rowId, col, field };
+
+
         const sectionKey = `section${section}Rows`;
         const rows = this[sectionKey];
 
         const rowIndex = rows.findIndex(row => row.id === rowId);
         if (rowIndex !== -1) {
-            const updatedRow = { ...rows[rowIndex] };
-            updatedRow[col] = { ...updatedRow[col], [field]: value };
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && rows[rowIndex][col].isPercentageUnitPrice) {
+                const numValue = parseFloat(value);
+                if (value.trim() !== '' && (isNaN(numValue) || numValue < 0 || numValue > 1)) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0 with 5 decimal precision
+                    rows[rowIndex][col].unitPrice = '0.00000';
+                    event.target.value = '0.00000';
+                    this[sectionKey] = [...rows]; // Force re-render
+                    return;
+                }
+            }
+
+            // Update the model directly without re-assigning the whole array
+            // This prevents full re-render and cursor jumping
+            rows[rowIndex][col][field] = value;
+
+            // Set last edited cell for formula logic protection
+            this._lastEditedCell = {
+                section,
+                rowId,
+                excelRow: rows[rowIndex].excelRow,
+                col,
+                field
+            };
 
             // Handle quantityRaw for quantity field
             if (field === 'quantity') {
-                updatedRow[col].quantityRaw = value;
+                rows[rowIndex][col].quantityRaw = value;
             }
 
-            // Handle description changes - toggle readonly for other fields
+            // Handle description changes
             if (field === 'description') {
                 const isEmpty = !value || value.trim() === '';
-
-                // Only toggle readonly if it's NOT a total/calculated row
-                // OR if description is NOT readonly (meaning it's one of our editable overrides like MISC.)
-                if (!updatedRow[col].isTotalRow && !updatedRow[col].descriptionReadonly) {
-                    updatedRow[col].quantityReadonly = isEmpty;
-                    updatedRow[col].unitPriceReadonly = isEmpty;
-                    // ⭐ Gross ALWAYS stays readonly (it's calculated)
-                    updatedRow[col].grossReadonly = true;
-
-                    // Update class properties to reflect readonly state
-                    updatedRow[col].quantityClass = isEmpty ? 'readonly-cell' : '';
-                    updatedRow[col].unitPriceClass = isEmpty ? 'col-unit readonly-cell' : 'col-unit';
-                    updatedRow[col].descriptionClass = isEmpty ? 'description-cell' : 'description-cell readonly-cell';
-
-                    // Clear values if description is cleared
-                    if (isEmpty) {
-                        updatedRow[col].quantity = '';
-                        updatedRow[col].quantityRaw = '';
-                        updatedRow[col].unitPrice = updatedRow[col].defaultUnitPrice || '';
-                        updatedRow[col].gross = '';
-                    }
+                if (isEmpty && !rows[rowIndex][col].isTotalRow && !rows[rowIndex][col].descriptionReadonly) {
+                    rows[rowIndex][col].quantity = '';
+                    rows[rowIndex][col].quantityRaw = '';
+                    rows[rowIndex][col].unitPrice = rows[rowIndex][col].defaultUnitPrice || '';
+                    rows[rowIndex][col].gross = '';
                 }
             }
 
             if (field === 'quantity' && value) {
-                if (updatedRow[col].defaultUnitPrice && !updatedRow[col].unitPrice) {
-                    updatedRow[col].unitPrice = updatedRow[col].defaultUnitPrice;
+                if (rows[rowIndex][col].defaultUnitPrice && !rows[rowIndex][col].unitPrice) {
+                    rows[rowIndex][col].unitPrice = rows[rowIndex][col].defaultUnitPrice;
                 }
             }
 
             if (field === 'quantity' || field === 'unitPrice') {
-                updatedRow[col].gross = this.calculateGross(
-                    updatedRow[col].quantityRaw || updatedRow[col].quantity,
-                    updatedRow[col].unitPrice
+                const isPercentage = rows[rowIndex][col].unitPriceFieldType === 'Percentage';
+                rows[rowIndex][col].gross = this.calculateGross(
+                    rows[rowIndex][col].quantityRaw || rows[rowIndex][col].quantity,
+                    rows[rowIndex][col].unitPrice,
+                    isPercentage
                 );
             }
 
             // ⭐ Track manual edits for editable override fields
-            // Row 186 (BIM) - quantity field
-            if (field === 'quantity' && updatedRow.excelRow === 186 && col === 'left') {
-                const row186EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[186] || {};
-                const leftOverrides = row186EditableOverrides.left || {};
-                if (leftOverrides.quantity) {
-                    // If user enters a value, mark as user-entered
-                    // If user clears the field (empty), reset flag to allow auto-calculation
-                    updatedRow[col].quantityUserEntered = !!(value && value.trim() !== '');
+            if (field === 'quantity' && rows[rowIndex].excelRow === 186 && col === 'left') {
+                rows[rowIndex][col].quantityUserEntered = !!(value && value.trim() !== '');
+            }
+            // Track sizeUserEntered for all high-precision size rows dynamically
+            if (field === 'size') {
+                const sizeConfig = BidWorksheetEstimate.HIGH_PRECISION_SIZE_FIELDS[rows[rowIndex].excelRow];
+                if (sizeConfig && sizeConfig[col]) {
+                    rows[rowIndex][col].sizeUserEntered = !!(value && value.trim() !== '');
                 }
             }
-
-            // Row 187 (Fabrication) - size field
-            if (field === 'size' && updatedRow.excelRow === 187 && col === 'left') {
-                const row187EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[187] || {};
-                const leftOverrides = row187EditableOverrides.left || {};
-                if (leftOverrides.size) {
-                    // If user enters a value, mark as user-entered
-                    // If user clears the field (empty), reset flag to allow auto-calculation
-                    updatedRow[col].sizeUserEntered = !!(value && value.trim() !== '');
-                }
-            }
-
-            this[sectionKey] = [
-                ...rows.slice(0, rowIndex),
-                updatedRow,
-                ...rows.slice(rowIndex + 1)
-            ];
-
-            // Track which cell was just edited (to skip its recalculation)
-            this._lastEditedCell = {
-                excelRow: updatedRow.excelRow,
-                col: col,
-                field: field
-            };
 
             this.calculateTotals();
-            
-            // Clear the flag after calculations
-            setTimeout(() => {
-                this._lastEditedCell = null;
-            }, 100);
-            
+
             // Notify parent for autosave (only if not loading data)
             if (!this._isLoadingData) {
                 this.notifyParentForAutoSave();
             }
         }
+    }
+
+    /**
+     * Handle blur to perform final normalization and rounding
+     */
+    handleBlur(event) {
+        const section = parseInt(event.target.dataset.section);
+        const rowId = parseInt(event.target.dataset.row);
+        const col = event.target.dataset.col;
+        const field = event.target.dataset.field;
+        let value = event.target.value;
+
+        const sectionKey = `section${section}Rows`;
+        const rows = this[sectionKey];
+        const rowIndex = rows.findIndex(row => row.id === rowId);
+        if (rowIndex === -1) return;
+
+        // If the field is empty, keep it empty instead of forcing a 0
+        if (!value || value.trim() === '') {
+            rows[rowIndex][col][field] = '';
+
+            // Clear UserEntered flags if field is cleared
+            if (field === 'quantity') rows[rowIndex][col].quantityUserEntered = false;
+            if (field === 'size') rows[rowIndex][col].sizeUserEntered = false;
+
+            this[sectionKey] = [...rows];
+            this.calculateTotals();
+            return;
+        }
+
+        if (field === 'quantity' || field === 'unitPrice') {
+            let numValue = parseFloat(value) || 0;
+            const isPercentage = rows[rowIndex][col].isPercentageUnitPrice;
+
+            // Validate percentage fields (0-1 scale)
+            if (field === 'unitPrice' && isPercentage) {
+                if (numValue < 0 || numValue > 1) {
+                    this.showToast('Error', 'Value should be between 0 and 1', 'error');
+                    // Reset to 0 with 5 decimal precision
+                    value = '0.00000';
+                    rows[rowIndex][col][field] = value;
+                    event.target.value = value; // Explicitly set input value
+                    this[sectionKey] = [...rows]; // Force re-render
+                    this.calculateTotals(); // Recalculate
+                    return;
+                }
+            }
+
+            // Block negative values
+            if (numValue < 0) {
+                this.showToast('Warning', 'Negative values not allowed', 'warning');
+                value = (field === 'unitPrice' && isPercentage) ? '0.00000' : '0';
+            } else {
+                // Round percentage fields to 5 decimals, others to 2 decimals
+                const precision = (field === 'unitPrice' && isPercentage) ? 5 : 2;
+                const roundedValue = Math.round((numValue + Number.EPSILON) * Math.pow(10, precision)) / Math.pow(10, precision);
+                // Use toFixed for percentage fields to preserve trailing zeros, toString for others
+                value = (field === 'unitPrice' && isPercentage) ? roundedValue.toFixed(5) : roundedValue.toString();
+            }
+
+            rows[rowIndex][col][field] = value;
+            // Explicitly set the input value to ensure it displays correctly
+            event.target.value = value;
+
+            // Recalculate gross with normalized values
+            rows[rowIndex][col].gross = this.calculateGross(
+                rows[rowIndex][col].quantityRaw || rows[rowIndex][col].quantity,
+                rows[rowIndex][col].unitPrice,
+                isPercentage
+            );
+        }
+
+        // Force a re-render on blur to ensure the input field shows the normalized value
+        this[sectionKey] = [...rows];
+        this.calculateTotals();
     }
 
     /**
@@ -554,9 +702,10 @@ export default class BidWorksheetEstimate extends LightningElement {
         this.dispatchEvent(event);
     }
 
-    calculateGross(quantity, unitPrice) {
+    calculateGross(quantity, unitPrice, isPercentage = false) {
         const qty = parseFloat(quantity) || 0;
-        const price = parseFloat(unitPrice) || 0;
+        let price = parseFloat(unitPrice) || 0;
+        // Percentage fields use 0-1 scale (0.1 = 10%), no division by 100
         const gross = qty * price;
         return gross > 0 ? gross.toFixed(2) : '';
     }
@@ -576,7 +725,6 @@ export default class BidWorksheetEstimate extends LightningElement {
         const s3 = parseFloat(this.section3Subtotal) || 0;
         this.grandTotal = (s1 + s2 + s3).toFixed(2);
 
-        console.log(`Totals: S1=$${this.section1Subtotal}, S2=$${this.section2Subtotal}, S3=$${this.section3Subtotal}, Grand=$${this.grandTotal}`);
 
         this.notifyParent();
     }
@@ -599,6 +747,56 @@ export default class BidWorksheetEstimate extends LightningElement {
             return parseFloat(row[side].quantity) || 0;
         };
 
+        const updateRowSide = (idx, side, updates) => {
+            const row = s1Rows[idx];
+            let changed = false;
+
+            // Add automatic class updates based on readonly flags
+            if (updates.quantityReadonly !== undefined) {
+                updates.quantityClass = updates.quantityReadonly ? 'readonly-cell' : '';
+            }
+            if (updates.unitPriceReadonly !== undefined) {
+                updates.unitPriceClass = updates.unitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit';
+            }
+            if (updates.descriptionReadonly !== undefined) {
+                updates.descriptionClass = updates.descriptionReadonly ? 'description-cell readonly-cell' : 'description-cell';
+            }
+            if (updates.sizeReadonly !== undefined) {
+                updates.sizeClass = updates.sizeReadonly ? 'readonly-cell' : '';
+            }
+
+            // Auto-format size field based on HIGH_PRECISION_SIZE_FIELDS config
+            if (updates.size !== undefined && updates.size !== '') {
+                const numVal = typeof updates.size === 'number' ? updates.size : parseFloat(updates.size);
+                if (!isNaN(numVal)) {
+                    updates.size = this.formatSizeValue(numVal, row.excelRow, side);
+                }
+            }
+
+            for (let key in updates) {
+                // SKIP if user is currently editing this specific cell
+                if (this._isUserEditing && this._editingCell &&
+                    this._editingCell.section === 1 &&
+                    this._editingCell.rowId === row.id &&
+                    this._editingCell.col === side &&
+                    this._editingCell.field === key) {
+                    continue;
+                }
+
+                if (row[side][key] !== updates[key]) {
+                    changed = true;
+                    break;
+                }
+            }
+            if (changed) {
+                s1Rows[idx] = {
+                    ...row,
+                    [side]: { ...row[side], ...updates }
+                };
+                sectionChanged = true;
+            }
+        };
+
         // ROW 22: TOTAL HEADS
         const row22Idx = findRowIndex(22);
         if (row22Idx !== -1) {
@@ -613,24 +811,16 @@ export default class BidWorksheetEstimate extends LightningElement {
                 }
             }
 
-            const row22 = s1Rows[row22Idx];
             const newQty = totalQty > 0 ? totalQty.toFixed(2) : '';
             const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
 
-            if (row22.left.quantity !== newQty || row22.left.gross !== newGross) {
-                s1Rows[row22Idx] = {
-                    ...row22,
-                    left: {
-                        ...row22.left,
-                        quantity: newQty,
-                        gross: newGross,
-                        quantityReadonly: true,
-                        unitPriceReadonly: true,
-                        grossReadonly: true
-                    }
-                };
-                sectionChanged = true;
-            }
+            updateRowSide(row22Idx, 'left', {
+                quantity: newQty,
+                gross: newGross,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
         // ROW 69: SUB TOTAL SHT #1
@@ -654,22 +844,14 @@ export default class BidWorksheetEstimate extends LightningElement {
                 }
             }
 
-            const row69 = s1Rows[row69Idx];
             const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
 
-            if (row69.left.gross !== newGross) {
-                s1Rows[row69Idx] = {
-                    ...row69,
-                    left: {
-                        ...row69.left,
-                        gross: newGross,
-                        quantityReadonly: true,
-                        unitPriceReadonly: true,
-                        grossReadonly: true
-                    }
-                };
-                sectionChanged = true;
-            }
+            updateRowSide(row69Idx, 'left', {
+                gross: newGross,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
         if (sectionChanged) {
@@ -690,6 +872,56 @@ export default class BidWorksheetEstimate extends LightningElement {
             return parseFloat(row[side].gross) || 0;
         };
 
+        const updateRowSide = (idx, side, updates) => {
+            const row = s2Rows[idx];
+            let changed = false;
+
+            // Add automatic class updates based on readonly flags
+            if (updates.quantityReadonly !== undefined) {
+                updates.quantityClass = updates.quantityReadonly ? 'readonly-cell' : '';
+            }
+            if (updates.unitPriceReadonly !== undefined) {
+                updates.unitPriceClass = updates.unitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit';
+            }
+            if (updates.descriptionReadonly !== undefined) {
+                updates.descriptionClass = updates.descriptionReadonly ? 'description-cell readonly-cell' : 'description-cell';
+            }
+            if (updates.sizeReadonly !== undefined) {
+                updates.sizeClass = updates.sizeReadonly ? 'readonly-cell' : '';
+            }
+
+            // Auto-format size field based on HIGH_PRECISION_SIZE_FIELDS config
+            if (updates.size !== undefined && updates.size !== '') {
+                const numVal = typeof updates.size === 'number' ? updates.size : parseFloat(updates.size);
+                if (!isNaN(numVal)) {
+                    updates.size = this.formatSizeValue(numVal, row.excelRow, side);
+                }
+            }
+
+            for (let key in updates) {
+                // SKIP if user is currently editing this specific cell
+                if (this._isUserEditing && this._editingCell &&
+                    this._editingCell.section === 2 &&
+                    this._editingCell.rowId === row.id &&
+                    this._editingCell.col === side &&
+                    this._editingCell.field === key) {
+                    continue;
+                }
+
+                if (row[side][key] !== updates[key]) {
+                    changed = true;
+                    break;
+                }
+            }
+            if (changed) {
+                s2Rows[idx] = {
+                    ...row,
+                    [side]: { ...row[side], ...updates }
+                };
+                sectionChanged = true;
+            }
+        };
+
         // ROW 125: SUB TOTAL SHT #2
         const row125Idx = findRowIndex(125);
         if (row125Idx !== -1) {
@@ -703,22 +935,14 @@ export default class BidWorksheetEstimate extends LightningElement {
                 }
             }
 
-            const row125 = s2Rows[row125Idx];
             const newGross = totalGross > 0 ? totalGross.toFixed(2) : '';
 
-            if (row125.left.gross !== newGross) {
-                s2Rows[row125Idx] = {
-                    ...row125,
-                    left: {
-                        ...row125.left,
-                        gross: newGross,
-                        quantityReadonly: true,
-                        unitPriceReadonly: true,
-                        grossReadonly: true
-                    }
-                };
-                sectionChanged = true;
-            }
+            updateRowSide(row125Idx, 'left', {
+                gross: newGross,
+                quantityReadonly: true,
+                unitPriceReadonly: true,
+                grossReadonly: true
+            });
         }
 
         if (sectionChanged) {
@@ -755,7 +979,39 @@ export default class BidWorksheetEstimate extends LightningElement {
         const updateRowSide = (idx, side, updates) => {
             const row = s3Rows[idx];
             let changed = false;
+
+            // Add automatic class updates based on readonly flags
+            if (updates.quantityReadonly !== undefined) {
+                updates.quantityClass = updates.quantityReadonly ? 'readonly-cell' : '';
+            }
+            if (updates.unitPriceReadonly !== undefined) {
+                updates.unitPriceClass = updates.unitPriceReadonly ? 'col-unit readonly-cell' : 'col-unit';
+            }
+            if (updates.descriptionReadonly !== undefined) {
+                updates.descriptionClass = updates.descriptionReadonly ? 'description-cell readonly-cell' : 'description-cell';
+            }
+            if (updates.sizeReadonly !== undefined) {
+                updates.sizeClass = updates.sizeReadonly ? 'readonly-cell' : '';
+            }
+
+            // Auto-format size field based on HIGH_PRECISION_SIZE_FIELDS config
+            if (updates.size !== undefined && updates.size !== '') {
+                const numVal = typeof updates.size === 'number' ? updates.size : parseFloat(updates.size);
+                if (!isNaN(numVal)) {
+                    updates.size = this.formatSizeValue(numVal, row.excelRow, side);
+                }
+            }
+
             for (let key in updates) {
+                // SKIP if user is currently editing this specific cell
+                if (this._isUserEditing && this._editingCell &&
+                    this._editingCell.section === 3 &&
+                    this._editingCell.rowId === row.id &&
+                    this._editingCell.col === side &&
+                    this._editingCell.field === key) {
+                    continue;
+                }
+
                 if (row[side][key] !== updates[key]) {
                     changed = true;
                     break;
@@ -795,18 +1051,29 @@ export default class BidWorksheetEstimate extends LightningElement {
         if (row184Idx !== -1 && row182Idx !== -1) {
             const laborHrs = getGross(s3Rows[row182Idx], 'left');
             const unitPrice = getUnit(s3Rows[row184Idx], 'left');
-            
+
             const newQtyRaw = laborHrs > 0 ? laborHrs.toFixed(2) : '';
             const newQty = (laborHrs > 0 && s3Rows[row184Idx].left.isWholeNumberQuantity) ? Math.round(laborHrs).toString() : newQtyRaw;
-            
-            updateRowSide(row184Idx, 'left', {
+
+            const isEditingRow184Size = this._lastEditedCell &&
+                this._lastEditedCell.excelRow === 184 &&
+                this._lastEditedCell.col === 'left' &&
+                this._lastEditedCell.field === 'size';
+
+            const row184Updates = {
                 quantityRaw: newQtyRaw,
                 quantity: newQty,
                 quantityReadonly: true,
                 gross: (laborHrs > 0 && unitPrice > 0) ? (laborHrs * unitPrice).toFixed(2) : '',
-                grossReadonly: true,
-                size: (headcountFromS1 > 0 && laborHrs > 0) ? (laborHrs / headcountFromS1).toFixed(2) : ''
-            });
+                grossReadonly: true
+            };
+
+            // Only set computed size if user hasn't manually entered a value
+            if (!isEditingRow184Size && !s3Rows[row184Idx].left.sizeUserEntered) {
+                row184Updates.size = (headcountFromS1 > 0 && laborHrs > 0) ? (laborHrs / headcountFromS1) : '';
+            }
+
+            updateRowSide(row184Idx, 'left', row184Updates);
         }
 
         // 3. ROW 185: ENGINEERING HALF HOUR HEAD
@@ -814,20 +1081,32 @@ export default class BidWorksheetEstimate extends LightningElement {
         if (row185Idx !== -1) {
             const qty = getQty(s3Rows[row185Idx], 'left');
             const unitPrice = getUnit(s3Rows[row185Idx], 'left');
-            
-            updateRowSide(row185Idx, 'left', {
+
+            const isEditingRow185Size = this._lastEditedCell &&
+                this._lastEditedCell.excelRow === 185 &&
+                this._lastEditedCell.col === 'left' &&
+                this._lastEditedCell.field === 'size';
+
+            const row185Updates = {
                 gross: (qty > 0 && unitPrice > 0) ? (qty * unitPrice).toFixed(2) : '',
-                grossReadonly: true,
-                size: (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : ''
-            });
+                grossReadonly: true
+            };
+
+            // Only set computed size if user hasn't manually entered a value
+            if (!isEditingRow185Size && !s3Rows[row185Idx].left.sizeUserEntered) {
+                row185Updates.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1) : '';
+            }
+
+            updateRowSide(row185Idx, 'left', row185Updates);
         }
 
         // 4. ROW 157: HEADCOUNT
         const row157Idx = findIdx(157);
         if (row157Idx !== -1) {
             updateRowSide(row157Idx, 'left', {
-                size: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
+                size: headcountFromS1 > 0 ? headcountFromS1 : '',
                 quantity: '',
+                quantityRaw: '',
                 quantityReadonly: true,
                 unitPriceReadonly: true,
                 grossReadonly: true
@@ -842,47 +1121,47 @@ export default class BidWorksheetEstimate extends LightningElement {
             const leftOverrides = row186EditableOverrides.left || {};
             const isQuantityEditable = leftOverrides.quantity;
             const isSizeEditable = leftOverrides.size;
-            
+
             const headcountVal = parseFloat(s3Rows[row157Idx].left.size) || 0;
             const bimQty = headcountVal / 2;
-            
-            const isEditingThisField = this._lastEditedCell && 
-                this._lastEditedCell.excelRow === 186 && 
-                this._lastEditedCell.col === 'left' && 
+
+            const isEditingThisField = this._lastEditedCell &&
+                this._lastEditedCell.excelRow === 186 &&
+                this._lastEditedCell.col === 'left' &&
                 this._lastEditedCell.field === 'quantity';
-            
+
             let updatedLeft = { ...row186.left };
-            
+
             if (!isQuantityEditable) {
                 updatedLeft.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
                 updatedLeft.quantity = (bimQty > 0 && updatedLeft.isWholeNumberQuantity) ? Math.round(bimQty).toString() : updatedLeft.quantityRaw;
                 updatedLeft.quantityUserEntered = false;
-            } else if (!isEditingThisField) {
+            } else if (!isEditingThisField && !updatedLeft.quantityUserEntered) {
                 updatedLeft.quantityRaw = bimQty > 0 ? bimQty.toFixed(2) : '';
                 updatedLeft.quantity = (bimQty > 0 && updatedLeft.isWholeNumberQuantity) ? Math.round(bimQty).toString() : updatedLeft.quantityRaw;
             }
-            
+
             updatedLeft.quantityReadonly = !isQuantityEditable;
-            const currentQty = parseFloat(updatedLeft.quantityRaw) || bimQty;
+            const currentQty = parseFloat(updatedLeft.quantityRaw || updatedLeft.quantity) || bimQty;
             const unitPrice = getUnit(row186, 'left');
             updatedLeft.gross = (currentQty > 0 && unitPrice > 0) ? (currentQty * unitPrice).toFixed(2) : '';
             updatedLeft.grossReadonly = true;
 
-            const isEditingThisSizeField = this._lastEditedCell && 
-                this._lastEditedCell.excelRow === 186 && 
-                this._lastEditedCell.col === 'left' && 
+            const isEditingThisSizeField = this._lastEditedCell &&
+                this._lastEditedCell.excelRow === 186 &&
+                this._lastEditedCell.col === 'left' &&
                 this._lastEditedCell.field === 'size';
-            
+
             if (!isSizeEditable) {
-                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1).toFixed(2) : '';
+                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1) : '';
                 updatedLeft.sizeUserEntered = false;
-            } else if (!isEditingThisSizeField) {
-                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1).toFixed(2) : '';
+            } else if (!isEditingThisSizeField && !updatedLeft.sizeUserEntered) {
+                updatedLeft.size = (headcountFromS1 > 0 && currentQty > 0) ? (currentQty / headcountFromS1) : '';
             }
-            
+
             updatedLeft.sizeReadonly = !isSizeEditable;
             updatedLeft.sizeClass = updatedLeft.sizeReadonly ? 'readonly-cell' : '';
-            
+
             updateRowSide(row186Idx, 'left', updatedLeft);
         }
 
@@ -893,29 +1172,29 @@ export default class BidWorksheetEstimate extends LightningElement {
             const row187EditableOverrides = BidWorksheetEstimate.EDITABLE_FIELD_OVERRIDES[187] || {};
             const leftOverrides = row187EditableOverrides.left || {};
             const isSizeEditable = leftOverrides.size;
-            
+
             const qty = getQty(row187, 'left');
             const unitPrice = getUnit(row187, 'left');
-            
+
             let updatedLeft = { ...row187.left };
             updatedLeft.gross = (qty > 0 && unitPrice > 0) ? (qty * unitPrice).toFixed(2) : '';
             updatedLeft.grossReadonly = true;
 
-            const isEditingThisSizeField = this._lastEditedCell && 
-                this._lastEditedCell.excelRow === 187 && 
-                this._lastEditedCell.col === 'left' && 
+            const isEditingThisSizeField = this._lastEditedCell &&
+                this._lastEditedCell.excelRow === 187 &&
+                this._lastEditedCell.col === 'left' &&
                 this._lastEditedCell.field === 'size';
-            
+
             if (!isSizeEditable) {
-                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : '';
+                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1) : '';
                 updatedLeft.sizeUserEntered = false;
-            } else if (!isEditingThisSizeField) {
-                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1).toFixed(2) : '';
+            } else if (!isEditingThisSizeField && !updatedLeft.sizeUserEntered) {
+                updatedLeft.size = (headcountFromS1 > 0 && qty > 0) ? (qty / headcountFromS1) : '';
             }
-            
+
             updatedLeft.sizeReadonly = !isSizeEditable;
             updatedLeft.sizeClass = updatedLeft.sizeReadonly ? 'readonly-cell' : '';
-            
+
             updateRowSide(row187Idx, 'left', updatedLeft);
         }
 
@@ -995,7 +1274,9 @@ export default class BidWorksheetEstimate extends LightningElement {
         const row135Idx = findIdx(135);
         if (row135Idx !== -1 && row133Idx !== -1) {
             const materialTotal = getGross(s3Rows[row133Idx], 'right');
-            const taxRate = getUnit(s3Rows[row135Idx], 'right') || 0;
+            const taxInput = getUnit(s3Rows[row135Idx], 'right') || 0;
+            // Percentage in 0-1 scale (0.1 = 10%)
+            const taxRate = taxInput;
             updateRowSide(row135Idx, 'right', {
                 gross: (materialTotal * taxRate).toFixed(2),
                 quantityReadonly: true,
@@ -1039,11 +1320,14 @@ export default class BidWorksheetEstimate extends LightningElement {
         const row161Idx = findIdx(161);
         if (row161Idx !== -1 && row160Idx !== -1) {
             const directCost = getGross(s3Rows[row160Idx], 'right');
-            const unitPrice = getUnit(s3Rows[row161Idx], 'right') || 0.15;
+            const overheadInput = getUnit(s3Rows[row161Idx], 'right') ?? 0.15;
+            // Percentage in 0-1 scale (0.15 = 15%)
+            const overheadRate = overheadInput;
             updateRowSide(row161Idx, 'right', {
                 quantity: directCost > 0 ? directCost.toFixed(2) : '',
+                quantityRaw: directCost > 0 ? directCost.toFixed(2) : '',
                 quantityReadonly: true,
-                gross: directCost > 0 ? (directCost * unitPrice).toFixed(2) : '',
+                gross: directCost > 0 ? (directCost * overheadRate).toFixed(2) : '',
                 grossReadonly: true
             });
         }
@@ -1065,11 +1349,14 @@ export default class BidWorksheetEstimate extends LightningElement {
         const row164Idx = findIdx(164);
         if (row164Idx !== -1 && row163Idx !== -1) {
             const subtotal = getGross(s3Rows[row163Idx], 'right');
-            const unitPrice = getUnit(s3Rows[row164Idx], 'right') || 0.15;
+            const gainInput = getUnit(s3Rows[row164Idx], 'right') ?? 0.15;
+            // Percentage in 0-1 scale (0.15 = 15%)
+            const gainRate = gainInput;
             updateRowSide(row164Idx, 'right', {
                 quantity: subtotal > 0 ? subtotal.toFixed(2) : '',
+                quantityRaw: subtotal > 0 ? subtotal.toFixed(2) : '',
                 quantityReadonly: true,
-                gross: subtotal > 0 ? (subtotal * unitPrice).toFixed(2) : '',
+                gross: subtotal > 0 ? (subtotal * gainRate).toFixed(2) : '',
                 grossReadonly: true
             });
         }
@@ -1113,9 +1400,12 @@ export default class BidWorksheetEstimate extends LightningElement {
             const gain = getGross(s3Rows[row164Idx], 'right');
             const quotePrice = getGross(s3Rows[row166Idx], 'right');
 
-            const newQty = quotePrice > 0 ? ((overhead + gain) / quotePrice).toFixed(4) : '';
+            // Result is a percentage, convert to whole number for display
+            const marginRate = quotePrice > 0 ? (overhead + gain) / quotePrice : 0;
+            const newQty = marginRate > 0 ? (marginRate * 100).toFixed(2) : '';
             updateRowSide(row168Idx, 'right', {
                 quantity: newQty,
+                quantityRaw: newQty,
                 quantityReadonly: true,
                 unitPriceReadonly: true,
                 grossReadonly: true
@@ -1129,6 +1419,7 @@ export default class BidWorksheetEstimate extends LightningElement {
             const bondCalc = (totalQuote / 1000) * 1.5;
             updateRowSide(row169Idx, 'right', {
                 quantity: (bondCalc < 100 ? 100 : bondCalc).toFixed(2),
+                quantityRaw: (bondCalc < 100 ? 100 : bondCalc).toFixed(2),
                 quantityReadonly: true,
                 gross: ((totalQuote / 1000) * 12).toFixed(2),
                 unitPriceReadonly: true,
@@ -1136,24 +1427,18 @@ export default class BidWorksheetEstimate extends LightningElement {
             });
         }
 
-        // 22. ROW 173: MATERIAL PER HEAD - depends on 155, 151, 144, 152, 145, 150
+        // 22. ROW 173: MATERIAL PER HEAD - depends on 155
         const row173Idx = findIdx(173);
         if (row173Idx !== -1) {
             const i155 = getGross(s3Rows[findIdx(155)], 'left');
-            const i144 = getGross(s3Rows[findIdx(144)], 'left');
-            const i145 = getGross(s3Rows[findIdx(145)], 'left');
-            const i150 = getGross(s3Rows[findIdx(150)], 'left');
-            const i151 = getGross(s3Rows[findIdx(151)], 'left');
-            const i152 = getGross(s3Rows[findIdx(152)], 'left');
 
-            const materialCost = i155 - i151 - i144 - i152 - i145 - i150;
-            
             updateRowSide(row173Idx, 'right', {
-                quantity: materialCost.toFixed(2),
+                quantity: i155.toFixed(2),
+                quantityRaw: i155.toFixed(2),
                 quantityReadonly: true,
                 unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
                 unitPriceReadonly: true,
-                gross: headcountFromS1 > 0 ? (materialCost / headcountFromS1).toFixed(2) : '',
+                gross: headcountFromS1 > 0 ? (i155 / headcountFromS1).toFixed(2) : '',
                 grossReadonly: true
             });
         }
@@ -1162,9 +1447,10 @@ export default class BidWorksheetEstimate extends LightningElement {
         const row174Idx = findIdx(174);
         if (row174Idx !== -1 && row160Idx !== -1) {
             const directCost = getGross(s3Rows[row160Idx], 'right');
-            
+
             updateRowSide(row174Idx, 'right', {
                 quantity: directCost > 0 ? directCost.toFixed(2) : '',
+                quantityRaw: directCost > 0 ? directCost.toFixed(2) : '',
                 quantityReadonly: true,
                 unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
                 unitPriceReadonly: true,
@@ -1189,32 +1475,26 @@ export default class BidWorksheetEstimate extends LightningElement {
         const row176Idx = findIdx(176);
         if (row176Idx !== -1 && row166Idx !== -1) {
             const quotePrice = getGross(s3Rows[row166Idx], 'right');
-            const i144 = getGross(s3Rows[findIdx(144)], 'left');
-            const i145 = getGross(s3Rows[findIdx(145)], 'left');
-            const i150 = getGross(s3Rows[findIdx(150)], 'left');
-            const i151 = getGross(s3Rows[findIdx(151)], 'left');
-            const i152 = getGross(s3Rows[findIdx(152)], 'left');
 
-            const salesCost = quotePrice - i144 - i145 - i150 - i151 - i152;
-            
             updateRowSide(row176Idx, 'right', {
-                quantity: salesCost.toFixed(2),
+                quantity: quotePrice.toFixed(2),
+                quantityRaw: quotePrice.toFixed(2),
                 quantityReadonly: true,
                 unitPrice: headcountFromS1 > 0 ? headcountFromS1.toFixed(2) : '',
                 unitPriceReadonly: true,
-                gross: headcountFromS1 > 0 ? (salesCost / headcountFromS1).toFixed(2) : '',
+                gross: headcountFromS1 > 0 ? (quotePrice / headcountFromS1).toFixed(2) : '',
                 grossReadonly: true
             });
         }
 
-        // 26. ROW 178: COST PER SQUARE FOOT - depends on 167, 175
+        // 26. ROW 178: COST PER SQUARE FOOT - depends on 166, 175
         const row178Idx = findIdx(178);
-        if (row178Idx !== -1 && row167Idx !== -1 && row175Idx !== -1) {
-            const netPrice = getGross(s3Rows[row167Idx], 'right');
+        if (row178Idx !== -1 && row166Idx !== -1 && row175Idx !== -1) {
+            const quotePrice166 = getGross(s3Rows[row166Idx], 'right');
             const sqFootage = getQty(s3Rows[row175Idx], 'right');
 
             updateRowSide(row178Idx, 'right', {
-                gross: sqFootage > 0 ? (netPrice / sqFootage).toFixed(2) : '',
+                gross: sqFootage > 0 ? (quotePrice166 / sqFootage).toFixed(2) : '',
                 grossReadonly: true,
                 quantityReadonly: true,
                 unitPriceReadonly: true,
@@ -1223,9 +1503,7 @@ export default class BidWorksheetEstimate extends LightningElement {
             });
         }
 
-        if (sectionChanged) {
-            this.section3Rows = s3Rows;
-        }
+        this.section3Rows = s3Rows;
     }
 
     calculateSectionTotal(rows) {
@@ -1246,6 +1524,9 @@ export default class BidWorksheetEstimate extends LightningElement {
 
     @api
     async saveSheet() {
+        this._isUserEditing = false;
+        this._editingCell = null;
+        this.calculateTotals();
         return {
             section1: this.collectSectionData(this.section1Rows, 1),
             section2: this.collectSectionData(this.section2Rows, 2),
@@ -1266,7 +1547,9 @@ export default class BidWorksheetEstimate extends LightningElement {
                     column: 'Left',
                     description: row.left.description || '',
                     size: row.left.size || '',
+                    sizeUserEntered: row.left.sizeUserEntered || false,
                     quantity: parseFloat(row.left.quantityRaw || row.left.quantity) || 0,
+                    quantityUserEntered: row.left.quantityUserEntered || false,
                     unitPrice: parseFloat(row.left.unitPrice) || 0,
                     gross: parseFloat(row.left.gross) || 0
                 });
@@ -1280,7 +1563,9 @@ export default class BidWorksheetEstimate extends LightningElement {
                     column: 'Right',
                     description: row.right.description || '',
                     size: row.right.size || '',
+                    sizeUserEntered: row.right.sizeUserEntered || false,
                     quantity: parseFloat(row.right.quantityRaw || row.right.quantity) || 0,
+                    quantityUserEntered: row.right.quantityUserEntered || false,
                     unitPrice: parseFloat(row.right.unitPrice) || 0,
                     gross: parseFloat(row.right.gross) || 0
                 });
@@ -1291,5 +1576,111 @@ export default class BidWorksheetEstimate extends LightningElement {
 
     showToast(title, message, variant) {
         this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+    }
+
+    /**
+     * Handle Download CSV button click (Consolidated for all sections)
+     */
+    handleDownloadCSV(event) {
+        if (event) {
+            // Prevent accordion from toggling
+            event.stopPropagation();
+        }
+
+
+        const csvContent = this.convertToCSV();
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filename = `Full_Estimate_Sheet_${dateStr}.csv`;
+
+        this.downloadCSVFile(csvContent, filename);
+    }
+
+    /**
+     * Convert all row data to a single CSV string
+     */
+    convertToCSV() {
+        const lines = [];
+        const dateStr = new Date().toLocaleDateString('en-US');
+        const headers = [
+            'DESCRIPTION', 'SIZE', 'QUANTITY', 'UNIT #', 'GROSS $',
+            '',
+            'DESCRIPTION', 'SIZE', 'QUANTITY', 'UNIT #', 'GROSS $'
+        ];
+
+        // Helper to add a section to CSV
+        const addSection = (title, rows) => {
+            lines.push(`${title.toUpperCase()},Export Date: ${dateStr}`);
+            lines.push(headers.join(','));
+
+            if (rows && rows.length > 0) {
+                rows.forEach(row => {
+                    const rowValues = [
+                        this.formatCSVValue(row.left.description),
+                        this.formatCSVValue(row.left.size),
+                        this.formatCSVValue(row.left.quantityRaw || row.left.quantity),
+                        this.formatCSVValue(row.left.unitPrice),
+                        this.formatCSVValue(row.left.gross),
+                        '',
+                        this.formatCSVValue(row.right.description),
+                        this.formatCSVValue(row.right.size),
+                        this.formatCSVValue(row.right.quantityRaw || row.right.quantity),
+                        this.formatCSVValue(row.right.unitPrice),
+                        this.formatCSVValue(row.right.gross)
+                    ];
+                    lines.push(rowValues.join(','));
+                });
+            }
+            lines.push(''); // Spacer
+            lines.push('');
+        };
+
+        // Add each section
+        addSection('Overhead Items', this.section1Rows);
+        addSection('Couplings & Clamps', this.section2Rows);
+        addSection('Totals & Materials', this.section3Rows);
+
+        return lines.join('\n');
+    }
+
+    /**
+     * Format a single value for CSV (handle commas and quotes)
+     */
+    formatCSVValue(val) {
+        if (val === null || val === undefined) return '';
+        let stringVal = String(val);
+
+        // Escape quotes
+        stringVal = stringVal.replace(/"/g, '""');
+
+        // If it contains comma, newline or quotes, wrap in quotes
+        if (stringVal.includes(',') || stringVal.includes('\n') || stringVal.includes('"')) {
+            stringVal = `"${stringVal}"`;
+        }
+
+        return stringVal;
+    }
+
+    /**
+     * Trigger browser download of CSV file
+     */
+    downloadCSVFile(csvContent, filename) {
+        // Use text/plain to avoid LWS security issues with text/csv
+        const blob = new Blob([csvContent], { type: 'text/plain' });
+        const link = document.createElement('a');
+
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
     }
 }

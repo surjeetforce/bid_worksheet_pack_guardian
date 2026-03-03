@@ -66,7 +66,7 @@ public without sharing class ITMBidWorksheetController {
                 docIds.add(l.ContentDocumentId);
             }
 
-            List<ContentVersion> versions = [SELECT Id, VersionNumber, CreatedDate, CreatedBy.Name, ContentSize
+            List<ContentVersion> versions = [SELECT Id, VersionNumber, CreatedDate, CreatedBy.Name, ContentSize, VersionData
                                              FROM ContentVersion
                                              WHERE ContentDocumentId IN:docIds
                                              ORDER BY CreatedDate DESC];
@@ -78,6 +78,19 @@ public without sharing class ITMBidWorksheetController {
                 wrapper.createdDate = cv.CreatedDate;
                 wrapper.createdBy = cv.CreatedBy.Name;
                 wrapper.fileSize = cv.ContentSize;
+                
+                // Check if this version is marked as final in JSON
+                wrapper.isFinal = false;
+                try {
+                    if (cv.VersionData != null) {
+                        String jsonData = cv.VersionData.toString();
+                        Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonData);
+                        wrapper.isFinal = (data.get('isFinal') == true);
+                    }
+                } catch (Exception e) {
+                    System.debug('Error checking isFinal for version: ' + e.getMessage());
+                }
+                
                 versionList.add(wrapper);
             }
         } catch (Exception e){
@@ -317,12 +330,18 @@ public without sharing class ITMBidWorksheetController {
      * Save ITM worksheet data to Opportunity
      */
     @AuraEnabled
-    public static Id saveITMWorksheet(Id opportunityId, String base64Data) {
+    public static Id saveITMWorksheet(Id opportunityId, String base64Data, Boolean markAsFinal) {
         if (opportunityId == null) {
             throw new AuraHandledException('Opportunity Id is required.');
         }
         if (String.isBlank(base64Data)) {
             throw new AuraHandledException('No ITM worksheet data provided.');
+        }
+        
+        // Check if a final version already exists by checking the JSON payload
+        Map<String, Object> finalStatus = getFinalVersionStatus(opportunityId);
+        if ((Boolean)finalStatus.get('hasFinalVersion')) {
+            throw new AuraHandledException('Cannot save: A final version already exists for this worksheet.');
         }
         
         // Decode the incoming JSON payload
@@ -372,6 +391,11 @@ public without sharing class ITMBidWorksheetController {
             );
             insert cv;
             System.debug('Created new ITM worksheet document');
+        }
+        
+        // No need to update Opportunity field - isFinal is stored in JSON payload
+        if (markAsFinal) {
+            System.debug('Version marked as final in JSON payload: ' + cv.Id);
         }
         
         // Delete auto-save attachment after save
@@ -502,6 +526,58 @@ public without sharing class ITMBidWorksheetController {
         return autoSaveSheetGeneric(opportunityId, base64Data, ITM_AUTO_SAVE_TITLE);
     }
 
+    /**
+     * Check if a final version exists for this opportunity
+     */
+    @AuraEnabled(cacheable = false)
+    public static Map<String, Object> getFinalVersionStatus(Id opportunityId) {
+        Map<String, Object> result = new Map<String, Object>();
+        result.put('hasFinalVersion', false);
+        result.put('finalVersionId', null);
+        
+        if (opportunityId == null) {
+            return result;
+        }
+        
+        try {
+            // Get ContentDocument links
+            List<ContentDocumentLink> links = [SELECT ContentDocumentId
+                                               FROM ContentDocumentLink
+                                               WHERE LinkedEntityId = :opportunityId 
+                                               AND ContentDocument.Title = :ITM_SHEET_TITLE];
+            
+            if (links.isEmpty()) {
+                return result;
+            }
+            
+            Set<Id> docIds = new Set<Id>();
+            for (ContentDocumentLink l : links) {
+                docIds.add(l.ContentDocumentId);
+            }
+            
+            // Get latest version
+            ContentVersion latest = [SELECT Id, VersionData
+                                    FROM ContentVersion
+                                    WHERE ContentDocumentId IN :docIds
+                                    ORDER BY CreatedDate DESC
+                                    LIMIT 1];
+            
+            if (latest != null && latest.VersionData != null) {
+                String jsonData = latest.VersionData.toString();
+                Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonData);
+                
+                if (data.get('isFinal') == true) {
+                    result.put('hasFinalVersion', true);
+                    result.put('finalVersionId', latest.Id);
+                }
+            }
+        } catch (Exception e) {
+            System.debug('Error checking final version status: ' + e.getMessage());
+        }
+        
+        return result;
+    }
+
     // ========================================
     // WRAPPER CLASSES
     // ========================================
@@ -537,5 +613,8 @@ public without sharing class ITMBidWorksheetController {
         
         @AuraEnabled
         public Long fileSize { get; set; }
+        
+        @AuraEnabled
+        public Boolean isFinal { get; set; }
     }
 }

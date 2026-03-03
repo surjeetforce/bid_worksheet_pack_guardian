@@ -169,14 +169,21 @@ public without sharing class BidWorksheetUndergroundController{
 
     /**
      * Save Design Worksheet data
+     * @param markAsFinal If true, the saved version is marked as final (no further versions can be created).
      */
     @AuraEnabled
-    public static Id saveDesignWorksheet(Id opportunityId, String base64Data){
+    public static Id saveDesignWorksheet(Id opportunityId, String base64Data, Boolean markAsFinal){
         if (opportunityId == null){
             throw new AuraHandledException('Opportunity Id is required.');
         }
         if (String.isBlank(base64Data)){
             throw new AuraHandledException('No design worksheet data provided.');
+        }
+        if (markAsFinal == false) {
+            Map<String, Object> finalStatus = getFinalVersionStatus_Design(opportunityId);
+            if ((Boolean)finalStatus.get('hasFinalVersion')) {
+                throw new AuraHandledException('Cannot save: A final version already exists for this worksheet.');
+            }
         }
 
         Blob body;
@@ -282,14 +289,19 @@ public without sharing class BidWorksheetUndergroundController{
     /**
      * Save the serialized sheet as a Salesforce File (ContentVersion) linked to the Opportunity.
      * If the file already exists, a new version is created on the same ContentDocument.
+     * @param markAsFinal If true, the saved version is marked as final (no further versions can be created).
      */
     @AuraEnabled
-    public static Id saveSheet(Id opportunityId, String base64Data){
+    public static Id saveSheet(Id opportunityId, String base64Data, Boolean markAsFinal){
         if (opportunityId == null){
             throw new AuraHandledException('Opportunity Id is required.');
         }
         if (String.isBlank(base64Data)){
             throw new AuraHandledException('No sheet data provided.');
+        }
+        Map<String, Object> finalStatus = getFinalVersionStatusGeneric(opportunityId, SHEET_TITLE);
+        if ((Boolean)finalStatus.get('hasFinalVersion')) {
+            throw new AuraHandledException('Cannot save: A final version already exists for this worksheet.');
         }
 
         // Decode the incoming JSON payload
@@ -339,12 +351,18 @@ public without sharing class BidWorksheetUndergroundController{
     }
 
     @AuraEnabled
-    public static Id saveEstimateSheet(Id opportunityId, String base64Data){
+    public static Id saveEstimateSheet(Id opportunityId, String base64Data, Boolean markAsFinal){
         if (opportunityId == null){
             throw new AuraHandledException('Opportunity Id is required.');
         }
         if (String.isBlank(base64Data)){
             throw new AuraHandledException('No sheet data provided.');
+        }
+        if (markAsFinal == false) {
+            Map<String, Object> finalStatus = getFinalVersionStatusGeneric(opportunityId, 'BidWorksheet_Estimate');
+            if ((Boolean)finalStatus.get('hasFinalVersion')) {
+                throw new AuraHandledException('Cannot save: A final version already exists for this worksheet.');
+            }
         }
 
         // Decode the incoming JSON payload
@@ -843,14 +861,21 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
 
     /**
      * Save Schedule of Values data
+     * @param markAsFinal If true, the saved version is marked as final (no further versions can be created).
      */
     @AuraEnabled
-    public static Id saveSOVSheet(Id opportunityId, String base64Data){
+    public static Id saveSOVSheet(Id opportunityId, String base64Data, Boolean markAsFinal){
         if (opportunityId == null){
             throw new AuraHandledException('Opportunity Id is required.');
         }
         if (String.isBlank(base64Data)){
             throw new AuraHandledException('No SOV data provided.');
+        }
+        if (markAsFinal == false) {
+            Map<String, Object> finalStatus = getFinalVersionStatus_SOV(opportunityId);
+            if ((Boolean)finalStatus.get('hasFinalVersion')) {
+                throw new AuraHandledException('Cannot save: A final version already exists for this worksheet.');
+            }
         }
 
         // Decode the incoming JSON payload
@@ -1068,7 +1093,7 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
                 docIds.add(l.ContentDocumentId);
             }
 
-            List<ContentVersion> versions = [SELECT Id, VersionNumber, CreatedDate, CreatedBy.Name, ContentSize
+            List<ContentVersion> versions = [SELECT Id, VersionNumber, CreatedDate, CreatedBy.Name, ContentSize, VersionData
                                              FROM ContentVersion
                                              WHERE ContentDocumentId IN:docIds
                                              ORDER BY CreatedDate DESC];
@@ -1080,6 +1105,16 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
                 wrapper.createdDate = cv.CreatedDate;
                 wrapper.createdBy = cv.CreatedBy.Name;
                 wrapper.fileSize = cv.ContentSize;
+                wrapper.isFinal = false;
+                try {
+                    if (cv.VersionData != null) {
+                        String jsonData = cv.VersionData.toString();
+                        Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonData);
+                        wrapper.isFinal = (data.get('isFinal') == true);
+                    }
+                } catch (Exception ex) {
+                    System.debug('Error checking isFinal for version: ' + ex.getMessage());
+                }
                 versionList.add(wrapper);
             }
         } catch (Exception e){
@@ -1087,6 +1122,50 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
         }
 
         return versionList;
+    }
+
+    /**
+     * Generic helper to check if a final version exists for a worksheet type
+     * @param opportunityId The Opportunity ID
+     * @param sheetTitle The title of the ContentDocument
+     * @return Map with hasFinalVersion (Boolean) and finalVersionId (Id or null)
+     */
+    private static Map<String, Object> getFinalVersionStatusGeneric(Id opportunityId, String sheetTitle) {
+        Map<String, Object> result = new Map<String, Object>();
+        result.put('hasFinalVersion', false);
+        result.put('finalVersionId', null);
+        if (opportunityId == null) {
+            return result;
+        }
+        try {
+            List<ContentDocumentLink> links = [SELECT ContentDocumentId
+                                               FROM ContentDocumentLink
+                                               WHERE LinkedEntityId = :opportunityId
+                                               AND ContentDocument.Title = :sheetTitle];
+            if (links.isEmpty()) {
+                return result;
+            }
+            Set<Id> docIds = new Set<Id>();
+            for (ContentDocumentLink l : links) {
+                docIds.add(l.ContentDocumentId);
+            }
+            ContentVersion latest = [SELECT Id, VersionData
+                                    FROM ContentVersion
+                                    WHERE ContentDocumentId IN :docIds
+                                    ORDER BY CreatedDate DESC
+                                    LIMIT 1];
+            if (latest != null && latest.VersionData != null) {
+                String jsonData = latest.VersionData.toString();
+                Map<String, Object> data = (Map<String, Object>) JSON.deserializeUntyped(jsonData);
+                if (data.get('isFinal') == true) {
+                    result.put('hasFinalVersion', true);
+                    result.put('finalVersionId', latest.Id);
+                }
+            }
+        } catch (Exception e) {
+            System.debug('Error checking final version status: ' + e.getMessage());
+        }
+        return result;
     }
 
     /**
@@ -1304,6 +1383,38 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
     }
 
     /**
+     * Check if a final version exists for the Underground worksheet
+     */
+    @AuraEnabled(cacheable = false)
+    public static Map<String, Object> getFinalVersionStatus(Id opportunityId) {
+        return getFinalVersionStatusGeneric(opportunityId, SHEET_TITLE);
+    }
+
+    /**
+     * Check if a final version exists for the Estimate worksheet
+     */
+    @AuraEnabled(cacheable = false)
+    public static Map<String, Object> getFinalVersionStatus_Estimate(Id opportunityId) {
+        return getFinalVersionStatusGeneric(opportunityId, 'BidWorksheet_Estimate');
+    }
+
+    /**
+     * Check if a final version exists for the Schedule of Values worksheet
+     */
+    @AuraEnabled(cacheable = false)
+    public static Map<String, Object> getFinalVersionStatus_SOV(Id opportunityId) {
+        return getFinalVersionStatusGeneric(opportunityId, 'BidWorksheet_SOV');
+    }
+
+    /**
+     * Check if a final version exists for the Design worksheet
+     */
+    @AuraEnabled(cacheable = false)
+    public static Map<String, Object> getFinalVersionStatus_Design(Id opportunityId) {
+        return getFinalVersionStatusGeneric(opportunityId, 'DesignWorksheet');
+    }
+
+    /**
      * Load a specific version by ContentVersion ID
      * This method is already generic - works for any ContentVersion
      */
@@ -1488,6 +1599,9 @@ public static void updateOpportunityFields(Id opportunityId, String fieldDataJso
         
         @AuraEnabled
         public Long fileSize { get; set; }
+
+        @AuraEnabled
+        public Boolean isFinal { get; set; }
     }
 
 }

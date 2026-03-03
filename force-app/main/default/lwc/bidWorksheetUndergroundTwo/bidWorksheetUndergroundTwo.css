@@ -11,6 +11,12 @@
     background-color: #fafaf9;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
 .sheet-title {
     font-size: 16px;
     font-weight: 700;
@@ -354,5 +360,31 @@
 
 /* Readonly field styling - don't show hover effect */
 input[readonly].cell-input:hover {
+    background-color: #f3f3f3;
+}
+
+/* Read-only (final) sheet: disabled inputs match non-editable cell background */
+.readonly-sheet .cell-input:disabled {
+    background-color: #f3f3f3;
+    color: #000000;
+    font-weight: 500;
+    cursor: default;
+    -webkit-text-fill-color: #000000;
+}
+
+.readonly-sheet .cell-input:disabled:focus {
+    outline: none;
+    background-color: #f3f3f3;
+}
+
+.readonly-sheet textarea.comment-textarea:disabled {
+    background-color: #f3f3f3;
+    color: #000000;
+    cursor: default;
+    -webkit-text-fill-color: #000000;
+}
+
+.readonly-sheet textarea.comment-textarea:disabled:focus {
+    outline: none;
     background-color: #f3f3f3;
 }

@@ -26,7 +26,7 @@
             </template>
             <template if:false={isLoading}>
             <!-- Main estimate table with two columns -->
-            <div class="estimate-table-wrapper">
+            <div class={sheetWrapperClass}>
                 <table class="estimate-table">
                     <thead>
                         <tr>
@@ -48,7 +48,7 @@
                     <tbody>
                         <!-- Dynamic rows using iteration -->
                         <template for:each={tableRows} for:item="row">
-                            <tr key={row.id} class={row.rowClass}>
+                            <tr key={row.listKey} class={row.rowClass}>
                                 <!-- Left column -->
                                 <td class={row.left.descriptionClass}>
                                     <template if:true={row.left.descriptionReadonly}>
@@ -65,20 +65,24 @@
                                             data-col="left"
                                             data-field="description"
                                             oninput={handleCellChange}
-                                            readonly={row.left.descriptionReadonly} />
+                                            onblur={handleBlur}
+                                            readonly={row.left.descriptionReadonly}
+                                            disabled={isReadOnly} />
                                     </template>
                                 </td>
                                 <td class={row.left.amountClass}>
                                     <input 
-                                        type="number" 
+                                        type="text" 
+                                        inputmode="decimal"
                                         value={row.left.amount}
                                         class="cell-input amount-input" 
                                         data-row={row.id}
                                         data-col="left"
                                         data-field="amount"
                                         oninput={handleCellChange}
+                                        onblur={handleBlur}
                                         readonly={row.left.amountReadonly}
-                                        step="0.01" />
+                                        disabled={isReadOnly} />
                                 </td>
                                 <td class={row.left.unitPriceClass}>
                                     <template if:true={row.left.unitPriceReadonly}>
@@ -88,7 +92,7 @@
                                                     value={row.left.unitPrice}
                                                     format-style="percent-fixed"
                                                     minimum-fraction-digits="2"
-                                                    maximum-fraction-digits="2">
+                                                    maximum-fraction-digits="5">
                                                 </lightning-formatted-number>
                                             </template>
                                             <template if:false={row.left.isPercentageUnitPrice}>
@@ -113,16 +117,18 @@
                                             <div class="unit-price-placeholder"></div>
                                         </template>
                                     </template>
-                                    <template if:false={row.left.unitPriceReadonly}>
+                                        <template if:false={row.left.unitPriceReadonly}>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="decimal"
                                             value={row.left.unitPrice}
                                             class="cell-input unit-input" 
                                             data-row={row.id}
                                             data-col="left"
                                             data-field="unitPrice"
                                             oninput={handleCellChange}
-                                            step="0.01" />
+                                            onblur={handleBlur}
+                                            disabled={isReadOnly} />
                                     </template>
                                 </td>
                                 <td class="col-gross">
@@ -162,7 +168,9 @@
                                             data-col="right"
                                             data-field="description"
                                             oninput={handleCellChange}
-                                            placeholder="">{row.right.description}</textarea>
+                                            onblur={handleBlur}
+                                            placeholder=""
+                                            disabled={isReadOnly}>{row.right.description}</textarea>
                                     </td>
                                 </template>
                                 
@@ -183,20 +191,24 @@
                                                 data-col="right"
                                                 data-field="description"
                                                 oninput={handleCellChange}
-                                                readonly={row.right.descriptionReadonly} />
+                                                onblur={handleBlur}
+                                                readonly={row.right.descriptionReadonly}
+                                                disabled={isReadOnly} />
                                         </template>
                                     </td>
                                     <td class={row.right.amountClass}>
                                         <input 
-                                            type="number" 
+                                            type="text" 
+                                            inputmode="decimal"
                                             value={row.right.amount}
                                             class="cell-input amount-input" 
                                             data-row={row.id}
                                             data-col="right"
                                             data-field="amount"
-                                            oninput={handleCellChange}
-                                            readonly={row.right.amountReadonly}
-                                            step="0.01" />
+                                        oninput={handleCellChange}
+                                        onblur={handleBlur}
+                                        readonly={row.right.amountReadonly}
+                                        disabled={isReadOnly} />
                                     </td>
                                     <td class={row.right.unitPriceClass}>
                                         <template if:true={row.right.unitPriceReadonly}>
@@ -206,7 +218,7 @@
                                                         value={row.right.unitPrice}
                                                         format-style="percent-fixed"
                                                         minimum-fraction-digits="2"
-                                                        maximum-fraction-digits="2">
+                                                        maximum-fraction-digits="5">
                                                     </lightning-formatted-number>
                                                 </template>
                                                 <template if:false={row.right.isPercentageUnitPrice}>
@@ -233,14 +245,16 @@
                                         </template>
                                         <template if:false={row.right.unitPriceReadonly}>
                                             <input 
-                                                type="number" 
+                                                type="text" 
+                                                inputmode="decimal"
                                                 value={row.right.unitPrice}
                                                 class="cell-input unit-input" 
                                                 data-row={row.id}
                                                 data-col="right"
                                                 data-field="unitPrice"
                                                 oninput={handleCellChange}
-                                                step="0.01" />
+                                                onblur={handleBlur}
+                                                disabled={isReadOnly} />
                                         </template>
                                     </td>
                                     <td class="col-gross">

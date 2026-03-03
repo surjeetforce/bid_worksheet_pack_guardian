@@ -23,9 +23,14 @@ const FLOOR_COLUMNS = [
 
 export default class ScheduleOfValues extends LightningElement {
     @api recordId;
+    @api isReadOnly = false;
 
     currencyFormatter;
     floorColumns = FLOOR_COLUMNS;
+
+    get sovBodyClass() {
+        return this.isReadOnly ? 'sov-body readonly-sheet' : 'sov-body';
+    }
 
     @track isLoading = true;
     @track jobOverview = {
@@ -38,6 +43,14 @@ export default class ScheduleOfValues extends LightningElement {
     @track metadataBuildingRows = [];
     @track buildings = [];
 
+    // Rows that auto-calculate from building totals
+    static AUTO_CALC_LABELS = [
+        '3D BIM (LUMP)',
+        'PUMP MATERIAL',
+        'PUMP ROUGH IN',
+        'STANDPIPE AND FHV (BY FLOOR / BY BUILDING)'
+    ];
+
     // Version control properties
     _versionIdToLoad = null;
     _lastLoadedVersionId = null;
@@ -47,6 +60,7 @@ export default class ScheduleOfValues extends LightningElement {
     _isInitializing = true; // Flag to prevent autosave during initialization
     _isRecalculating = false; // Flag to prevent infinite calculation loops
     _suppressAutoSave = false; // Flag to suppress autosave during programmatic updates
+    _editingCell = null; // { type: 'summary'|'building', buildingId?, rowId, floorKey? }
 
     @api
     get versionIdToLoad() {
@@ -60,6 +74,7 @@ export default class ScheduleOfValues extends LightningElement {
         const normalizedNewValue = value === '' ? null : value;
         
         this._versionIdToLoad = value;
+        
         
         // Check if rows are initialized
         const rowsReady = this.summaryRows.length > 0 || this.buildings.length > 0;
@@ -118,6 +133,7 @@ export default class ScheduleOfValues extends LightningElement {
     @wire(getSOVItems)
     wiredSOVItems({ error, data }) {
         if (data) {
+
             // Set loading flag first to prevent autosave during initialization
             this._isLoadingData = true;
 
@@ -132,6 +148,7 @@ export default class ScheduleOfValues extends LightningElement {
 
             // Now try to load saved data
             setTimeout(() => {
+                
                 // Always ensure versionIdToLoad is set - if null/empty, set to 'draft'
                 // This ensures the setter fires and loads data
                 const versionToLoad = (this._versionIdToLoad && this._versionIdToLoad !== '') 
@@ -148,8 +165,8 @@ export default class ScheduleOfValues extends LightningElement {
                     this._isInitializing = false;
                 }, 1500);
             }, 100);
+
         } else if (error) {
-            console.error('Error loading SOV metadata:', error);
             this.showToast('Error', 'Failed to load SOV metadata', 'error');
             this.isLoading = false;
             this._isLoadingData = false;
@@ -204,11 +221,17 @@ export default class ScheduleOfValues extends LightningElement {
                 }
 
                 if (data.summaryRows && Array.isArray(data.summaryRows) && data.summaryRows.length > 0) {
-                    // Ensure summaryRows have the correct structure with displayValue
-                    this.summaryRows = data.summaryRows.map(row => ({
-                        ...row,
-                        displayValue: row.displayValue || this.formatCurrency(row.value || 0)
-                    }));
+                    // Ensure summaryRows have the correct structure with displayValue, isReadonly and cellClass
+                    this.summaryRows = data.summaryRows.map(row => {
+                        const isReadonly = ScheduleOfValues.AUTO_CALC_LABELS.includes(row.label);
+                        const centerValue = ScheduleOfValues.AUTO_CALC_LABELS.includes(row.label);
+                        return {
+                            ...row,
+                            displayValue: row.displayValue || this.formatCurrency(row.value || 0),
+                            isReadonly: isReadonly,
+                            cellClass: (isReadonly ? 'readonly-cell' : '') + (centerValue ? ' value-cell-center' : '')
+                        };
+                    });
                 } else {
                 }
 
@@ -283,7 +306,6 @@ export default class ScheduleOfValues extends LightningElement {
                 jobName: designJobName
             };
         } catch (error) {
-            console.error('Error populating job name from Design Worksheet', error);
         } finally {
             this.isLoading = false;
         }
@@ -300,7 +322,6 @@ export default class ScheduleOfValues extends LightningElement {
             const decoder = new TextDecoder('utf-8');
             return decoder.decode(bytes);
         } catch (err) {
-            console.error('Decode data failed:', err);
             throw err;
         }
     }
@@ -327,13 +348,19 @@ export default class ScheduleOfValues extends LightningElement {
 
     createSummaryRows(metadataRows) {
         if (!metadataRows) metadataRows = [];
-        return metadataRows.map(item => ({
-            id: item.id,
-            label: item.label,
-            mirrorsBuilding: item.mirrorsBuilding ?? true,
-            value: item.defaultValue || 0,
-            displayValue: this.formatCurrency(item.defaultValue || 0)
-        }));
+        return metadataRows.map(item => {
+            const isReadonly = ScheduleOfValues.AUTO_CALC_LABELS.includes(item.label);
+            const centerValue = ScheduleOfValues.AUTO_CALC_LABELS.includes(item.label);
+            return {
+                id: item.id,
+                label: item.label,
+                mirrorsBuilding: item.mirrorsBuilding ?? true,
+                value: item.defaultValue || 0,
+                displayValue: this.formatCurrency(item.defaultValue || 0),
+                isReadonly: isReadonly,
+                cellClass: (isReadonly ? 'readonly-cell' : '') + (centerValue ? ' value-cell-center' : '')
+            };
+        });
     }
 
     createBuildings(desiredCount = 1) {
@@ -414,12 +441,21 @@ export default class ScheduleOfValues extends LightningElement {
                 const total = Object.values(row.values).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
                 const totalDisplay = this.formatCurrency(total);
                 const valueMap = { ...row.values };
-                const cells = this.floorColumns.map(column => ({
-                    key: column.key,
-                    isTotal: column.isTotal,
-                    value: column.isTotal ? totalDisplay : valueMap[column.key] || 0,
-                    displayValue: column.isTotal ? totalDisplay : null
-                }));
+                const cells = this.floorColumns.map(column => {
+                    const isEditingThisCell = this._isUserEditing && this._editingCell && 
+                        this._editingCell.type === 'building' && 
+                        this._editingCell.buildingId === building.id && 
+                        this._editingCell.rowId === row.id && 
+                        this._editingCell.floorKey === column.key;
+
+                    return {
+                        key: column.key,
+                        isTotal: column.isTotal,
+                        value: column.isTotal ? totalDisplay : (isEditingThisCell ? valueMap[column.key] : valueMap[column.key] || 0),
+                        displayValue: column.isTotal ? totalDisplay : null,
+                        cellClass: column.isTotal ? 'readonly-cell' : ''
+                    };
+                });
 
                 this.floorColumns
                     .filter(column => !column.isTotal)
@@ -479,13 +515,7 @@ export default class ScheduleOfValues extends LightningElement {
 
     recalculateSummaryTotals() {
         // ONLY these specific rows should auto-calculate from building totals
-        // Based on Excel: C5, C10, C11, C14
-        const AUTO_CALC_LABELS = [
-            '3D BIM (LUMP)',
-            'PUMP MATERIAL',
-            'PUMP ROUGH IN',
-            'STANDPIPE AND FHV (BY FLOOR / BY BUILDING)'
-        ];
+        const AUTO_CALC_LABELS = ScheduleOfValues.AUTO_CALC_LABELS;
 
         // Build totals maps from all buildings
         const totalsById = {};
@@ -502,8 +532,7 @@ export default class ScheduleOfValues extends LightningElement {
             });
         });
 
-        // Update summary rows - ONLY auto-calculate the 4 specific rows
-        // Make sure we have summaryRows to work with
+        // Update summary rows - ONLY auto-calculate the specific rows
         if (!this.summaryRows || this.summaryRows.length === 0) {
             return;
         }
@@ -512,12 +541,21 @@ export default class ScheduleOfValues extends LightningElement {
             // Check if this row should auto-calculate
             const shouldAutoCalc = AUTO_CALC_LABELS.includes(row.label);
 
+            const isEditingThisCell = this._isUserEditing && this._editingCell && 
+                this._editingCell.type === 'summary' && 
+                this._editingCell.rowId === row.id;
+
             if (!shouldAutoCalc) {
                 // Keep existing manual value for all other rows
-                return row;
+                // If user is editing, we skip updating this value to avoid cursor jumping
+                return {
+                    ...row,
+                    value: isEditingThisCell ? row.value : row.value || 0,
+                    isReadonly: false
+                };
             }
 
-            // Auto-calculate from building totals for the 4 rows only
+            // Auto-calculate from building totals for the auto-calc rows
             let matchingTotal = 0;
             if (row.id && totalsById.hasOwnProperty(row.id)) {
                 matchingTotal = totalsById[row.id];
@@ -527,10 +565,13 @@ export default class ScheduleOfValues extends LightningElement {
                 matchingTotal = row.value || 0;
             }
 
+            const centerValue = ScheduleOfValues.AUTO_CALC_LABELS.includes(row.label);
             return {
                 ...row,
                 value: matchingTotal,
-                displayValue: this.formatCurrency(matchingTotal)
+                displayValue: this.formatCurrency(matchingTotal),
+                isReadonly: true,
+                cellClass: 'readonly-cell' + (centerValue ? ' value-cell-center' : '')
             };
         });
 
@@ -558,22 +599,24 @@ export default class ScheduleOfValues extends LightningElement {
     handleSummaryValueChange(event) {
         // Set flag to indicate user is actively editing
         this._isUserEditing = true;
+        const rowId = event.target.dataset.rowId;
+        const value = event.target.value;
+
+        this._editingCell = { type: 'summary', rowId };
+
         if (this._editingTimeout) {
             clearTimeout(this._editingTimeout);
         }
         this._editingTimeout = setTimeout(() => {
             this._isUserEditing = false;
+            this._editingCell = null;
         }, 1000);
 
-        if (event.target.type == 'number') {
-            this.sanitizeNonNegative(event);
+        // Update the model directly without re-mapping the whole array during typing
+        const rowIndex = this.summaryRows.findIndex(row => row.id === rowId);
+        if (rowIndex !== -1) {
+            this.summaryRows[rowIndex].value = value;
         }
-
-        const rowId = event.target.dataset.rowId;
-        const newValue = parseFloat(event.target.value) || 0;
-        this.summaryRows = this.summaryRows.map(row =>
-            row.id === rowId ? { ...row, value: newValue, displayValue: this.formatCurrency(newValue) } : row
-        );
 
         this.notifyParent();
         
@@ -583,7 +626,48 @@ export default class ScheduleOfValues extends LightningElement {
         }
     }
 
-    handleBuildingValueChange(event) {
+    handleBlur(event) {
+        const { buildingId, rowId, floorKey } = event.target.dataset;
+        const rowIdSummary = event.target.dataset.rowId;
+        let value = event.target.value;
+
+        this._isUserEditing = false;
+        this._editingCell = null;
+
+        if (buildingId) {
+            // Building cell blur
+            const buildingIndex = this.buildings.findIndex(b => b.id === buildingId);
+            if (buildingIndex !== -1) {
+                const categoryIndex = this.buildings[buildingIndex].categoryRows.findIndex(r => r.id === rowId);
+                if (categoryIndex !== -1) {
+                    if (!value || value.trim() === '') {
+                        this.buildings[buildingIndex].categoryRows[categoryIndex].values[floorKey] = '';
+                    } else {
+                        const numValue = parseFloat(value) || 0;
+                        this.buildings[buildingIndex].categoryRows[categoryIndex].values[floorKey] = Math.round((numValue + Number.EPSILON) * 100) / 100;
+                    }
+                }
+            }
+            this.buildings = [...this.buildings];
+            this.refreshBuildingCalculations();
+        } else if (rowIdSummary) {
+            // Summary cell blur
+            const rowIndex = this.summaryRows.findIndex(row => row.id === rowIdSummary);
+            if (rowIndex !== -1) {
+                if (!value || value.trim() === '') {
+                    this.summaryRows[rowIndex].value = '';
+                } else {
+                    const numValue = parseFloat(value) || 0;
+                    this.summaryRows[rowIndex].value = Math.round((numValue + Number.EPSILON) * 100) / 100;
+                }
+                this.summaryRows[rowIndex].displayValue = this.formatCurrency(this.summaryRows[rowIndex].value);
+            }
+            this.summaryRows = [...this.summaryRows];
+            this.notifyParent();
+        }
+    }
+
+    handleSummaryLabelChange(event) {
         // Set flag to indicate user is actively editing
         this._isUserEditing = true;
         if (this._editingTimeout) {
@@ -593,37 +677,72 @@ export default class ScheduleOfValues extends LightningElement {
             this._isUserEditing = false;
         }, 1000);
 
-        if (event.target.type == 'number') {
-            this.sanitizeNonNegative(event);
+        const rowId = event.target.dataset.rowId;
+        const newLabel = event.target.value;
+        this.summaryRows = this.summaryRows.map(row =>
+            row.id === rowId ? { ...row, label: newLabel } : row
+        );
+        this.notifyParent();
+        if (!this._isLoadingData && !this._isInitializing) {
+            this.notifyParentForAutoSave();
         }
+    }
 
+    handleBuildingValueChange(event) {
+        // Set flag to indicate user is actively editing
+        this._isUserEditing = true;
         const { buildingId, rowId, floorKey } = event.target.dataset;
-        const newValue = parseFloat(event.target.value) || 0;
+        const value = event.target.value;
 
-        this.buildings = this.buildings.map(building => {
-            if (building.id !== buildingId) {
-                return building;
+        this._editingCell = { type: 'building', buildingId, rowId, floorKey };
+
+        if (this._editingTimeout) {
+            clearTimeout(this._editingTimeout);
+        }
+        this._editingTimeout = setTimeout(() => {
+            this._isUserEditing = false;
+            this._editingCell = null;
+        }, 1000);
+
+        // Update the model directly
+        const buildingIndex = this.buildings.findIndex(b => b.id === buildingId);
+        if (buildingIndex !== -1) {
+            const categoryIndex = this.buildings[buildingIndex].categoryRows.findIndex(r => r.id === rowId);
+            if (categoryIndex !== -1) {
+                this.buildings[buildingIndex].categoryRows[categoryIndex].values[floorKey] = value;
             }
-
-            const categoryRows = building.categoryRows.map(row => {
-                if (row.id !== rowId) {
-                    return row;
-                }
-
-                const updatedValues = {
-                    ...row.values,
-                    [floorKey]: newValue
-                };
-
-                return { ...row, values: updatedValues };
-            });
-
-            return { ...building, categoryRows };
-        });
+        }
 
         this.refreshBuildingCalculations();
         
         // Notify parent for autosave (only if not loading data and not during initialization)
+        if (!this._isLoadingData && !this._isInitializing) {
+            this.notifyParentForAutoSave();
+        }
+    }
+
+    handleBuildingLabelChange(event) {
+        // Set flag to indicate user is actively editing
+        this._isUserEditing = true;
+        if (this._editingTimeout) {
+            clearTimeout(this._editingTimeout);
+        }
+        this._editingTimeout = setTimeout(() => {
+            this._isUserEditing = false;
+        }, 1000);
+
+        const { buildingId, rowId } = event.target.dataset;
+        const newLabel = event.target.value;
+
+        this.buildings = this.buildings.map(building => {
+            if (building.id !== buildingId) return building;
+            const categoryRows = building.categoryRows.map(row => {
+                if (row.id !== rowId) return row;
+                return { ...row, label: newLabel };
+            });
+            return { ...building, categoryRows };
+        });
+
         if (!this._isLoadingData && !this._isInitializing) {
             this.notifyParentForAutoSave();
         }
@@ -643,17 +762,14 @@ export default class ScheduleOfValues extends LightningElement {
         let value = event.target.value;
 
         if (field === 'numberOfBuildings') {
-            // Allow empty string temporarily - validation will happen on blur
-            // Only update buildings array if we have a valid number
-            const numericValue = value === '' ? null : parseFloat(value);
+            // Allow typing - don't force numeric logic until blur
+            this.jobOverview = { ...this.jobOverview, [field]: value };
             
+            const numericValue = value === '' ? null : parseFloat(value);
             if (numericValue !== null && !isNaN(numericValue)) {
                 const maxAllowed = 200;
                 const validatedValue = Math.max(1, Math.min(maxAllowed, Math.floor(numericValue)));
                 
-                // Update the stored value
-                this.jobOverview = { ...this.jobOverview, [field]: validatedValue };
-
                 const currentBuildings = this.buildings || [];
                 const currentCount = currentBuildings.length;
 
@@ -668,9 +784,6 @@ export default class ScheduleOfValues extends LightningElement {
                 }
 
                 this.refreshBuildingCalculations();
-            } else {
-                // Empty or invalid - store as empty string but don't modify buildings array
-                this.jobOverview = { ...this.jobOverview, [field]: '' };
             }
             
             // Notify parent for autosave (only if not loading data and not during initialization)
@@ -803,12 +916,6 @@ export default class ScheduleOfValues extends LightningElement {
         this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }
 
-    handleNumberKeyDown(event) {
-        if (event.key === '-' || event.key === 'Minus') {
-            event.preventDefault();
-        }
-    }
-
     sanitizeNonNegative(event) {
         let value = event.target.value;
 
@@ -820,4 +927,102 @@ export default class ScheduleOfValues extends LightningElement {
         }
     }
 
+    /**
+     * Handle Download CSV button click
+     */
+    handleDownloadCSV() {
+        if (this.summaryRows.length === 0 && this.buildings.length === 0) {
+            this.showToast('Info', 'No data to download', 'info');
+            return;
+        }
+
+        const csvContent = this.convertToCSV();
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filename = `Schedule_of_Values_${dateStr}.csv`;
+        
+        this.downloadCSVFile(csvContent, filename);
+    }
+
+    /**
+     * Convert SOV data to CSV string
+     */
+    convertToCSV() {
+        const lines = [];
+        
+        // Job Summary
+        lines.push('JOB SUMMARY');
+        lines.push(`JOB NAME,${this.formatCSVValue(this.jobOverview.jobName)}`);
+        lines.push(`# OF BUILDINGS,${this.jobOverview.numberOfBuildings}`);
+        lines.push('');
+
+        // Summary Table
+        lines.push('ALL BUILDINGS SUMMARY');
+        lines.push('CATEGORY,TOTAL');
+        this.summaryRows.forEach(row => {
+            lines.push(`${this.formatCSVValue(row.label)},${row.value}`);
+        });
+        lines.push(`TOTAL FROM ALL BUILDINGS,${this.totalSummaryDisplay.replace('$', '').replace(/,/g, '')}`);
+        lines.push('');
+
+        // Building Details
+        this.visibleBuildings.forEach(building => {
+            lines.push(`BUILDING DETAILS: ${this.formatCSVValue(building.label)}`);
+            
+            const floorLabels = this.floorColumns.map(col => col.label);
+            lines.push(`CATEGORY,${floorLabels.join(',')}`);
+            
+            building.categoryRows.forEach(row => {
+                const floorValues = this.floorColumns.map(col => {
+                    const cell = row.cells.find(c => c.key === col.key);
+                    return cell ? cell.value : 0;
+                });
+                lines.push(`${this.formatCSVValue(row.label)},${floorValues.join(',')}`);
+            });
+            
+            const buildingTotals = this.floorColumns.map(col => {
+                const cell = building.floorSummaryCells.find(c => c.key === col.key);
+                return cell ? cell.displayValue.replace('$', '').replace(/,/g, '') : '0.00';
+            });
+            lines.push(`TOTAL BUILDING ${this.formatCSVValue(building.label)},${buildingTotals.join(',')}`);
+            lines.push('');
+        });
+
+        return lines.join('\n');
+    }
+
+    /**
+     * Format a single value for CSV
+     */
+    formatCSVValue(val) {
+        if (val === null || val === undefined) return '';
+        let stringVal = String(val);
+        stringVal = stringVal.replace(/"/g, '""');
+        if (stringVal.includes(',') || stringVal.includes('\n') || stringVal.includes('"')) {
+            stringVal = `"${stringVal}"`;
+        }
+        return stringVal;
+    }
+
+    /**
+     * Trigger browser download of CSV file
+     */
+    downloadCSVFile(csvContent, filename) {
+        // Use text/plain to avoid LWS security issues with text/csv
+        const blob = new Blob([csvContent], { type: 'text/plain' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
+    }
 }
